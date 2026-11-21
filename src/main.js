@@ -72,8 +72,8 @@ app.innerHTML = `
 
     <main class="main-content">
       <section class="view active" id="view-home">
-        <div class="page-title-row"><div><div class="eyebrow">SISTEMA MULTIMÍDIA • VOYAGE</div><h1>Bem-vindo.</h1><p>Uma experiência a bordo, do seu jeito.</p></div><div class="title-mark">PIVI <span>INSPIRED</span></div></div>
-        <div class="home-dashboard">
+        <div class="page-title-row home-intro"><div><div class="eyebrow">VOYAGE AMBIENT</div><h1 id="homeGreetingTitle" aria-live="polite">Bem-vindo.</h1></div></div>
+        <div class="home-dashboard" id="home-dashboard">
           <button class="dash-tile ambient-tile" data-go="lighting">
             <div class="tile-top"><div><span class="eyebrow">AMBIENT LIGHTING</span><h2>Iluminação ambiente</h2><p id="homeMood">MOONLIGHT • AZUL NOTURNO</p></div><span class="tile-arrow">↗</span></div>
             <div class="ambient-car-scene"><div class="car-glow" id="homeGlow"></div><svg viewBox="0 0 520 180" role="img" aria-label="Ilustração estilizada do veículo"><path class="car-window" d="M94 108 L128 54 Q141 34 174 29 L344 29 Q374 30 394 58 L431 109 Z"/><path class="car-body" d="M57 113 Q68 102 99 101 L125 71 Q141 49 175 47 L348 47 Q376 49 397 78 L430 103 Q454 107 463 119 L454 139 L67 139 Z"/><path class="car-roofline" d="M130 100 L162 59 Q172 51 190 51 L333 51 Q362 53 385 100"/><path class="car-light" d="M72 117 H447"/><circle class="car-wheel" cx="142" cy="136" r="19"/><circle class="car-wheel" cx="382" cy="136" r="19"/><path class="car-interior-line" d="M177 108 L190 79 L325 79 L346 108 M258 80 V111"/></svg><span class="car-caption">VOYAGE • CABIN LIGHTING</span></div>
@@ -620,6 +620,17 @@ function updateClock() {
   $('#dateLabel').textContent = new Intl.DateTimeFormat('pt-BR', { weekday: 'long', day: '2-digit', month: 'short' }).format(now).replace('.', '').toUpperCase();
 }
 
+// Tela de entrada: saudação breve e, depois, mensagem permanente de viagem.
+function startWelcomeSequence() {
+  const greeting = $('#homeGreetingTitle');
+  if (!greeting) return;
+  greeting.textContent = 'Bem-vindo.';
+  window.setTimeout(() => {
+    const current = $('#homeGreetingTitle');
+    if (current) current.textContent = 'Boa viagem.';
+  }, 3000);
+}
+
 
 initVisualEditor({
   getConfig: () => appConfig,
@@ -632,4 +643,5 @@ renderPalette();
 renderMoodCards();
 render();
 updateClock();
+startWelcomeSequence();
 setInterval(updateClock, 15000);

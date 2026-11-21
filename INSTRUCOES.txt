@@ -1,0 +1,16 @@
+VOYAGE AMBIENT 0.4.0 — PATCH DE AUDITORIA
+
+Substitua no GitHub os arquivos do ZIP mantendo os mesmos caminhos:
+- src/main.js
+- src/editor/editor-ui.js
+- src/editor/editor.css
+- src/core/asset-library.js
+- src/core/developer-tools.js
+- tests/core.test.js
+- README.md
+
+O arquivo AUDITORIA-0.4.0.md é um relatório de referência; pode ser colocado na raiz do repositório.
+
+Não substitua package.json. A versão permanece 0.4.0.
+Não envie nenhum firmware .ino. O ESP32 não precisa ser regravado nesta atualização.
+Depois do commit, confira Actions. A compilação será executada pelo GitHub.
