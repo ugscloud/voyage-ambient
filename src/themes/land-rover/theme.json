@@ -1,0 +1,9 @@
+{
+  "id": "land-rover",
+  "name": "Land Rover Pivi Inspired",
+  "version": "1.0.0",
+  "status": "active",
+  "ownerEditable": true,
+  "customerEditable": false,
+  "description": "Tema visual principal do Voyage Ambient, inspirado na organização de centrais Pivi. Não utiliza logotipos ou arquivos proprietários da fabricante."
+}

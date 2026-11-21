@@ -1,0 +1,19 @@
+CHECKLIST DE VALIDACAO DA BASE 0.3.0
+
+1. Abra o GitHub Pages e confirme que a tela inicial Land Rover aparece.
+2. Abra Iluminação e conecte ao ESP32. Teste ligar/desligar, cor, brilho, velocidade e efeitos.
+3. Desconecte e reconecte para confirmar que os comandos continuam compatíveis.
+4. Recarregue a página e confirme que cor/brilho/efeito ficam salvos no navegador.
+5. Abra Aplicativos > Desenvolvedor (ou use o atalho DEV, se disponível).
+6. Baixe o backup JSON e confira se o arquivo é criado.
+7. Gere o pacote de assistência JSON. Este é o arquivo para enviar ao ChatGPT quando precisar compartilhar as configurações.
+8. Edite os nomes/comportamentos do modelo de cinco relés e salve. Recarregue a página e confirme que ficam salvos localmente. Lembre-se: ainda não acionam hardware.
+9. Crie o rascunho de automação Porta -> Luz. Ele deve aparecer como não enviado ao ESP32.
+10. Adicione um arquivo pequeno à biblioteca local e confirme que aparece na lista. Teste com cautela antes de adicionar modelos 3D de centenas de MB.
+11. Exporte um backup, altere algumas configurações, importe o backup e confirme a restauração.
+
+IMPORTANTE
+- O firmware do ESP32 não foi modificado nesta entrega.
+- Não é necessário regravar o ESP32 para testar esta base web.
+- OTA, automações no firmware, módulo de relés físico, temas BMW completos, editor de arrastar-e-soltar, APK nativo e carro 3D ainda não estão implementados.
+- Se a conexão BLE falhar após a publicação, não regrave o controlador: informe o erro e revertemos o commit/arquivos do site primeiro.

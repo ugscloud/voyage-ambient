@@ -1,0 +1,9 @@
+{
+  "id": "custom",
+  "name": "Personalizado",
+  "version": "0.1.0",
+  "status": "scaffold",
+  "ownerEditable": true,
+  "customerEditable": true,
+  "description": "Base reservada para temas criados no editor do usuário."
+}

@@ -1,0 +1,10 @@
+{
+  "protocolVersion": "0.1-draft",
+  "catalog": [
+    { "type": "controller", "name": "Voyage Core", "status": "planned" },
+    { "type": "lighting-rgb", "name": "Iluminação RGB", "status": "legacy-ble-working" },
+    { "type": "relay-output", "name": "Módulo de relés", "status": "planned" },
+    { "type": "input-sense", "name": "Leitura de sinais", "status": "planned" },
+    { "type": "sound", "name": "Áudio e avisos", "status": "planned" }
+  ]
+}

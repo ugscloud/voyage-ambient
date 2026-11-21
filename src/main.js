@@ -1,9 +1,14 @@
 import './style.css';
+import { loadConfig, saveConfig, updateConfig, validateBackup } from './core/config-store.js';
+import { VoyageBleClient } from './core/ble-client.js';
+import { THEMES } from './core/theme-registry.js';
+import { createRelayModuleTemplate, normalizeOutput } from './core/module-registry.js';
+import { createAutomationDraft } from './core/automation-store.js';
+import { saveAsset, listAssets, deleteAsset } from './core/asset-library.js';
+import { exportConfiguration, exportDeveloperPackage } from './core/developer-tools.js';
 
-// UUIDs e comandos preservados do firmware já carregado no ESP32.
-const SERVICE_UUID = '7b9e0001-7a3d-4f5b-9c2a-6e1d0a5b0001';
-const CHARACTERISTIC_UUID = '7b9e0002-7a3d-4f5b-9c2a-6e1d0a5b0001';
-const STORAGE_KEY = 'voyage-ambient-settings-v1';
+// A configuração é única e versionada. A migração preserva as preferências da versão anterior.
+let appConfig = loadConfig();
 
 // Paleta de 30 tons inspirada nas opções de iluminação Range Rover.
 // Os códigos RGB são escolhas do Voyage Ambient, não códigos oficiais da fábrica.
@@ -28,24 +33,21 @@ const MOODS = [
 ];
 
 function loadSavedState() {
-  try {
-    const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
-    return {
-      connected: false, powered: saved.powered ?? true,
-      color: saved.color || '#91B4D8', brightness: saved.brightness ?? 80,
-      effect: saved.effect || 'SOLID', speed: saved.speed ?? 45,
-      profile: saved.profile || 'MOONLIGHT', cameraPackage: saved.cameraPackage || '',
-    };
-  } catch {
-    return { connected: false, powered: true, color: '#91B4D8', brightness: 80, effect: 'SOLID', speed: 45, profile: 'MOONLIGHT', cameraPackage: '' };
-  }
+  return {
+    connected: false,
+    powered: appConfig.lighting.powered ?? true,
+    color: appConfig.lighting.color || '#91B4D8',
+    brightness: appConfig.lighting.brightness ?? 80,
+    effect: appConfig.lighting.effect || 'SOLID',
+    speed: appConfig.lighting.speed ?? 45,
+    profile: appConfig.lighting.profile || 'MOONLIGHT',
+    cameraPackage: appConfig.camera.frontPackage || '',
+  };
 }
 
 const state = loadSavedState();
-const ble = { device: null, server: null, characteristic: null };
-const encoder = new TextEncoder();
+let bleClient;
 let toastTimer;
-let commandQueue = Promise.resolve();
 
 const app = document.querySelector('#app');
 app.innerHTML = `
@@ -63,6 +65,7 @@ app.innerHTML = `
       <button class="rail-button" data-view="camera" title="Câmera frontal"><span class="icon">◉</span><small>CÂMERA</small></button>
       <div class="rail-spacer"></div>
       <button class="rail-button" data-view="settings" title="Configurações"><span class="icon">⚙</span><small>AJUSTES</small></button>
+      <button class="rail-button developer-rail" data-view="developer" title="Desenvolvedor"><span class="icon">⌘</span><small>DEV</small></button>
     </aside>
 
     <main class="main-content">
@@ -102,6 +105,7 @@ app.innerHTML = `
           <button class="app-tile" data-go="profiles"><span class="app-icon">◈</span><b>AMBIENTES</b><small>Cenas de iluminação</small></button>
           <button class="app-tile" data-go="modes"><span class="app-icon">◇</span><b>ESTILO VISUAL</b><small>Land Rover e outros</small></button>
           <button class="app-tile" data-go="settings"><span class="app-icon">⚙</span><b>CONFIGURAÇÕES</b><small>Conexões do sistema</small></button>
+          <button class="app-tile developer-app-tile" data-go="developer"><span class="app-icon">⌘</span><b>DESENVOLVEDOR</b><small>Ferramentas e exportação</small></button>
           <div class="app-tile disabled"><span class="app-icon">♫</span><b>MÍDIA</b><small>Integração futura</small><em>EM BREVE</em></div>
           <div class="app-tile disabled"><span class="app-icon">♧</span><b>CONFORTO</b><small>Funções futuras</small><em>EM BREVE</em></div>
         </div>
@@ -183,6 +187,58 @@ app.innerHTML = `
         </div>
       </section>
 
+      <section class="view" id="view-developer">
+        <div class="page-title-row"><div><div class="eyebrow">FERRAMENTAS DO PROPRIETÁRIO</div><h1>Modo desenvolvedor</h1><p>Configuração, biblioteca de recursos e diagnóstico do Voyage Ambient.</p></div><span class="count-label">BASE DO SISTEMA • v0.3</span></div>
+        <div class="dev-notice"><b>Área de desenvolvimento ativa.</b> Os temas padrão são editáveis neste modo. Antes da comercialização, esta área deverá receber autenticação de proprietário e permissões de produção.</div>
+        <div class="dev-grid">
+          <article class="pivi-panel dev-card">
+            <span class="eyebrow">EXPORTAÇÃO PARA ASSISTÊNCIA</span><h2>Pacote para continuar o desenvolvimento</h2>
+            <p>Gera um JSON com versão, configurações, tema, módulos, protocolo BLE e estados de implementação. Não inclui senhas ou chaves privadas.</p>
+            <button class="primary-button" id="exportSupport">GERAR PACOTE PARA ENVIAR AO CHATGPT</button>
+            <button class="secondary-button dev-wide-button" id="exportBackup">BAIXAR BACKUP DE CONFIGURAÇÃO</button>
+            <label class="secondary-button dev-import-label" for="importBackupFile">IMPORTAR BACKUP JSON</label><input id="importBackupFile" type="file" accept="application/json,.json" hidden />
+          </article>
+          <article class="pivi-panel dev-card">
+            <span class="eyebrow">ARQUITETURA ATUAL</span><h2>Estado do ecossistema</h2>
+            <div class="dev-stat-row"><span>Núcleo web</span><b>Organizado</b></div>
+            <div class="dev-stat-row"><span>BLE iluminação legado</span><b class="dev-good">Compatibilidade preservada</b></div>
+            <div class="dev-stat-row"><span>Editor visual completo</span><b class="dev-pending">Próxima etapa</b></div>
+            <div class="dev-stat-row"><span>OTA Wi-Fi / BLE</span><b class="dev-pending">Ainda não implementado</b></div>
+            <div class="dev-stat-row"><span>APK Android / launcher</span><b class="dev-pending">Ainda não implementado</b></div>
+          </article>
+        </div>
+        <div class="dev-grid">
+          <article class="pivi-panel dev-card dev-wide">
+            <div class="dev-section-heading"><div><span class="eyebrow">CATÁLOGO DE HARDWARE</span><h2>Módulos reconhecidos e modelos</h2></div><span class="count-label" id="moduleCount">—</span></div>
+            <div id="moduleList" class="dev-module-list"></div>
+          </article>
+          <article class="pivi-panel dev-card dev-wide">
+            <div class="dev-section-heading"><div><span class="eyebrow">MODELO DE MÓDULO</span><h2>Configuração de cinco relés</h2></div><span class="count-label">RASCUNHO LOCAL</span></div>
+            <p>Defina nomes e comportamentos para um futuro módulo. Estas opções ficam salvas no navegador, mas ainda não são enviadas ao ESP32 nem acionam relés físicos.</p>
+            <div id="relayEditor" class="relay-editor"></div>
+            <button class="primary-button" id="saveRelayConfig">SALVAR MODELO DE RELÉS</button>
+          </article>
+          <article class="pivi-panel dev-card">
+            <span class="eyebrow">REGRAS DO VEÍCULO</span><h2>Automações em preparação</h2>
+            <p>Crie rascunhos das regras que futuramente serão enviadas ao Voyage Core.</p>
+            <button class="secondary-button dev-wide-button" id="addAutomation">CRIAR RASCUNHO: PORTA → LUZ</button>
+            <div id="automationList" class="dev-list"></div>
+          </article>
+          <article class="pivi-panel dev-card">
+            <span class="eyebrow">BIBLIOTECA LOCAL</span><h2>Imagens, sons e modelos 3D</h2>
+            <p>Arquivos adicionados aqui ficam neste navegador/dispositivo (IndexedDB). Eles não são enviados ao GitHub nem sincronizados automaticamente.</p>
+            <label class="primary-button dev-import-label" for="assetUpload">ADICIONAR ARQUIVOS</label>
+            <input id="assetUpload" type="file" accept="image/*,audio/*,model/gltf-binary,.glb,.gltf,.bin,.mp3,.wav,.ogg" multiple hidden />
+            <div id="assetList" class="dev-list"></div>
+          </article>
+          <article class="pivi-panel dev-card dev-wide">
+            <span class="eyebrow">BIBLIOTECA DE INTERFACES</span><h2>Temas separados do núcleo</h2>
+            <div id="themeList" class="dev-theme-list"></div>
+            <p class="small-note">Nesta entrega, Land Rover continua sendo o único tema visual funcional. BMW e Personalizado já têm pastas e manifestos iniciais, mas ainda não possuem layouts próprios.</p>
+          </article>
+        </div>
+      </section>
+
       <section class="view" id="view-settings">
         <div class="page-title-row"><div><div class="eyebrow">SYSTEM SETTINGS</div><h1>Configurações</h1><p>Conexões e preferências do Voyage Ambient.</p></div></div>
         <article class="pivi-panel settings-panel">
@@ -190,7 +246,8 @@ app.innerHTML = `
           <div class="settings-row"><div><b>Estado da conexão</b><small id="settingsConnection">Nenhum controlador conectado</small></div><button class="secondary-button" id="disconnectButton" disabled>DESCONECTAR</button></div>
           <div class="settings-row"><div><b>Aplicativo de câmera</b><small id="savedCameraPackage">Identificador ainda não configurado</small></div><button class="secondary-button" data-go="camera">CONFIGURAR</button></div>
           <div class="settings-row"><div><b>Estilo visual</b><small>Land Rover • Pivi inspired</small></div><button class="secondary-button" data-go="modes">ALTERAR ESTILO</button></div>
-          <div class="settings-row"><div><b>Versão</b><small>Voyage Ambient • interface reformulada</small></div><span class="version-mark">1.0</span></div>
+          <div class="settings-row"><div><b>Ferramentas do proprietário</b><small>Editor em preparação, módulos, backups e exportação</small></div><button class="secondary-button" data-go="developer">ABRIR DESENVOLVEDOR</button></div>
+          <div class="settings-row"><div><b>Versão</b><small>Voyage Ambient • núcleo modular • v0.3.0</small></div><span class="version-mark">0.3</span></div>
         </article>
         <p class="small-note settings-footnote">A conexão BLE via navegador requer suporte a Web Bluetooth e HTTPS. Algumas multimídias Android exigem uma versão APK com Bluetooth nativo.</p>
       </section>
@@ -212,19 +269,32 @@ function toast(message) {
   toastTimer = setTimeout(() => element.classList.remove('visible'), 3400);
 }
 
+bleClient = new VoyageBleClient({
+  onConnectionChange: (connected) => {
+    state.connected = connected;
+    render();
+    if (!connected) toast('ESP32 desconectado.');
+  },
+  onMessage: (message) => {
+    if (message !== 'CONNECTED') toast(`ESP32: ${message}`);
+  },
+});
+
 function hexToRgb(hex) {
   const normalized = hex.replace('#', '');
   return [0, 2, 4].map((index) => parseInt(normalized.slice(index, index + 2), 16));
 }
 
 function saveState() {
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({
+  const result = updateConfig(appConfig, {
+    lighting: {
       powered: state.powered, color: state.color, brightness: state.brightness,
       effect: state.effect, speed: state.speed, profile: state.profile,
-      cameraPackage: state.cameraPackage,
-    }));
-  } catch { /* O app continua funcionando sem armazenamento local. */ }
+    },
+    camera: { frontPackage: state.cameraPackage },
+  });
+  appConfig = result.config;
+  if (!result.ok) toast('Não foi possível salvar as preferências neste navegador.');
 }
 
 function colorName(color) {
@@ -270,17 +340,15 @@ function setView(view) {
   $$('.view').forEach((section) => section.classList.toggle('active', section.id === `view-${view}`));
   $$('.rail-button').forEach((button) => button.classList.toggle('active', button.dataset.view === view));
   if (view === 'camera') $('#cameraPackage').value = state.cameraPackage;
+  if (view === 'developer') refreshDeveloperView();
 }
 
 function sendCommand(command) {
-  if (!ble.characteristic || !state.connected) return Promise.resolve();
-  commandQueue = commandQueue.then(async () => {
-    const data = encoder.encode(command);
-    if (typeof ble.characteristic?.writeValueWithResponse === 'function') await ble.characteristic.writeValueWithResponse(data);
-    else if (typeof ble.characteristic?.writeValueWithoutResponse === 'function') await ble.characteristic.writeValueWithoutResponse(data);
-    else if (typeof ble.characteristic?.writeValue === 'function') await ble.characteristic.writeValue(data);
-  }).catch((error) => toast(`Falha ao enviar comando: ${error.message}`));
-  return commandQueue;
+  if (!bleClient?.connected || !state.connected) return Promise.resolve(false);
+  return bleClient.send(command).catch((error) => {
+    toast(`Falha ao enviar comando: ${error.message}`);
+    return false;
+  });
 }
 
 async function sendCurrentState() {
@@ -318,45 +386,23 @@ function applyMood(moodId) {
 }
 
 async function connectBluetooth() {
-  if (!('bluetooth' in navigator)) {
-    toast('Este navegador não oferece Web Bluetooth. A multimídia poderá precisar da versão APK nativa.');
-    return;
-  }
-  if (!window.isSecureContext) {
-    toast('A conexão Bluetooth exige uma página HTTPS segura.');
-    return;
-  }
   try {
     toast('Procurando o controlador Voyage Ambient…');
-    ble.device = await navigator.bluetooth.requestDevice({ filters: [{ services: [SERVICE_UUID] }] });
-    ble.device.addEventListener('gattserverdisconnected', handleDisconnect);
-    ble.server = await ble.device.gatt.connect();
-    const service = await ble.server.getPrimaryService(SERVICE_UUID);
-    ble.characteristic = await service.getCharacteristic(CHARACTERISTIC_UUID);
-    if (ble.characteristic.properties.notify) {
-      await ble.characteristic.startNotifications();
-      ble.characteristic.addEventListener('characteristicvaluechanged', (event) => {
-        const message = new TextDecoder().decode(event.target.value).trim();
-        if (message && message !== 'CONNECTED') toast(`ESP32: ${message}`);
-      });
-    }
-    state.connected = true; render(); await sendCurrentState();
+    await bleClient.connect();
+    state.connected = true;
+    render();
+    await sendCurrentState();
     toast('ESP32 conectado. Controle de iluminação ativo.');
   } catch (error) {
-    state.connected = false; render();
+    state.connected = false;
+    render();
     if (error.name === 'NotFoundError') toast('Nenhum dispositivo selecionado.');
     else toast(`Não foi possível conectar: ${error.message}`);
   }
 }
 
-function handleDisconnect() {
-  state.connected = false; ble.server = null; ble.characteristic = null;
-  render(); toast('ESP32 desconectado.');
-}
-
 function disconnectBluetooth() {
-  if (ble.device?.gatt?.connected) ble.device.gatt.disconnect();
-  else handleDisconnect();
+  bleClient?.disconnect();
 }
 
 function saveCameraPackage() {
@@ -376,6 +422,157 @@ function launchCameraApp() {
     toast('Este atalho deve ser testado diretamente na multimídia Android.'); return;
   }
   window.location.href = `intent://#Intent;action=android.intent.action.MAIN;category=android.intent.category.LAUNCHER;package=${state.cameraPackage};end`;
+}
+
+
+function escapeHtml(value) {
+  return String(value ?? '').replace(/[&<>\"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '\"': '&quot;', "'": '&#39;' }[char]));
+}
+
+function refreshDeveloperView() {
+  renderModuleList();
+  renderRelayEditor();
+  renderAutomationList();
+  renderThemeList();
+  renderAssetList();
+}
+
+function renderModuleList() {
+  const container = $('#moduleList');
+  if (!container) return;
+  container.innerHTML = appConfig.modules.map((module) => `
+    <div class="dev-module-row">
+      <div><b>${escapeHtml(module.name)}</b><small>${escapeHtml(module.type)} • ${module.installed ? 'registrado como instalado' : 'modelo não instalado'}</small></div>
+      <span class="dev-status ${module.installed ? 'is-ready' : 'is-pending'}">${module.installed ? 'ATUAL' : 'MODELO'}</span>
+    </div>`).join('');
+  $('#moduleCount').textContent = `${appConfig.modules.length} REGISTROS`;
+}
+
+function renderRelayEditor() {
+  const container = $('#relayEditor');
+  if (!container) return;
+  let relayModule = appConfig.modules.find((module) => module.id === 'relay-5-template');
+  if (!relayModule) relayModule = createRelayModuleTemplate();
+  container.innerHTML = relayModule.outputs.map((output, index) => `
+    <div class="relay-editor-row">
+      <span class="relay-number">${index + 1}</span>
+      <input class="text-field" data-relay-name="${index}" value="${escapeHtml(output.name)}" maxlength="32" aria-label="Nome da saída ${index + 1}" />
+      <select class="text-field" data-relay-behavior="${index}" aria-label="Comportamento da saída ${index + 1}">
+        <option value="toggle" ${output.behavior === 'toggle' ? 'selected' : ''}>Ligar / desligar</option>
+        <option value="momentary" ${output.behavior === 'momentary' ? 'selected' : ''}>Momentâneo</option>
+        <option value="group" ${output.behavior === 'group' ? 'selected' : ''}>Agrupado</option>
+      </select>
+    </div>`).join('');
+}
+
+function renderAutomationList() {
+  const container = $('#automationList');
+  if (!container) return;
+  if (!appConfig.automations.length) {
+    container.innerHTML = '<p class="small-note">Nenhum rascunho criado.</p>';
+    return;
+  }
+  container.innerHTML = appConfig.automations.map((rule) => `
+    <div class="dev-list-row"><b>${escapeHtml(rule.name)}</b><small>${escapeHtml(rule.trigger)} → ${escapeHtml(rule.action)} • NÃO ENVIADA AO ESP32</small></div>`).join('');
+}
+
+function renderThemeList() {
+  const container = $('#themeList');
+  if (!container) return;
+  container.innerHTML = THEMES.map((theme) => `
+    <div class="dev-theme-row"><div><b>${escapeHtml(theme.name)}</b><small>${escapeHtml(theme.path)}</small></div><span class="dev-status ${theme.status === 'active' ? 'is-ready' : 'is-pending'}">${theme.status === 'active' ? 'ATIVO' : 'ESTRUTURA'}</span></div>`).join('');
+}
+
+async function renderAssetList() {
+  const container = $('#assetList');
+  if (!container) return;
+  try {
+    const assets = await listAssets();
+    if (!assets.length) {
+      container.innerHTML = '<p class="small-note">Nenhum arquivo salvo neste navegador.</p>';
+      return;
+    }
+    container.innerHTML = assets.map((asset) => `
+      <div class="dev-list-row"><div><b>${escapeHtml(asset.name)}</b><small>${(asset.size / 1024 / 1024).toFixed(2)} MB • ${escapeHtml(asset.type)}</small></div><button class="asset-delete" data-delete-asset="${escapeHtml(asset.id)}">REMOVER</button></div>`).join('');
+    $$('[data-delete-asset]').forEach((button) => button.addEventListener('click', async () => {
+      try { await deleteAsset(button.dataset.deleteAsset); toast('Arquivo removido da biblioteca local.'); renderAssetList(); }
+      catch (error) { toast(`Não foi possível remover: ${error.message}`); }
+    }));
+  } catch (error) {
+    container.innerHTML = `<p class="small-note">Biblioteca local indisponível: ${escapeHtml(error.message)}</p>`;
+  }
+}
+
+async function handleAssetUpload(event) {
+  const files = [...(event.target.files || [])];
+  if (!files.length) return;
+  for (const file of files) {
+    try {
+      const category = file.type.startsWith('image/') ? 'image' : file.type.startsWith('audio/') ? 'audio' : /\.(glb|gltf)$/i.test(file.name) ? '3d-model' : 'other';
+      await saveAsset(file, category);
+    } catch (error) {
+      toast(`Não foi possível salvar ${file.name}: ${error.message}`);
+    }
+  }
+  event.target.value = '';
+  await renderAssetList();
+  toast('Biblioteca local atualizada.');
+}
+
+function saveRelayConfig() {
+  const existing = appConfig.modules.find((module) => module.id === 'relay-5-template') || createRelayModuleTemplate();
+  const outputs = existing.outputs.map((output, index) => normalizeOutput({
+    ...output,
+    name: $(`[data-relay-name="${index}"]`)?.value,
+    behavior: $(`[data-relay-behavior="${index}"]`)?.value,
+  }, index));
+  const modules = appConfig.modules.filter((module) => module.id !== 'relay-5-template');
+  modules.push({ ...existing, outputs, installed: false, state: 'template-only', draft: true });
+  const result = saveConfig({ ...appConfig, modules });
+  appConfig = result.config;
+  if (result.ok) toast('Modelo de cinco relés salvo neste navegador. Ainda não foi enviado ao ESP32.');
+  renderModuleList();
+}
+
+function addAutomationDraft() {
+  try {
+    const rule = createAutomationDraft({ name: 'Quando a porta abrir, acender a iluminação', trigger: 'door_open', action: 'ambient_on' });
+    const result = saveConfig({ ...appConfig, automations: [...appConfig.automations, rule] });
+    appConfig = result.config;
+    renderAutomationList();
+    toast('Rascunho salvo localmente. O firmware atual ainda não executa automações.');
+  } catch (error) { toast(error.message); }
+}
+
+async function importBackupFile(event) {
+  const file = event.target.files?.[0];
+  if (!file) return;
+  try {
+    const parsed = JSON.parse(await file.text());
+    const validation = validateBackup(parsed);
+    if (!validation.ok) throw new Error(validation.message);
+    const result = saveConfig(validation.config);
+    if (!result.ok) throw new Error(result.error || 'Falha ao gravar configurações.');
+    appConfig = result.config;
+    const wasConnected = state.connected;
+    Object.assign(state, loadSavedState(), { connected: wasConnected });
+    render();
+    refreshDeveloperView();
+    toast('Backup importado.');
+  } catch (error) { toast(`Não foi possível importar: ${error.message}`); }
+  event.target.value = '';
+}
+
+function exportSupportPackage() {
+  listAssets().then((assets) => exportDeveloperPackage({
+    config: appConfig,
+    assets,
+    connectionState: state.connected ? 'connected' : 'disconnected',
+  })).catch(() => exportDeveloperPackage({
+    config: appConfig,
+    assets: [],
+    connectionState: state.connected ? 'connected' : 'disconnected',
+  }));
 }
 
 function renderPalette() {
@@ -403,6 +600,13 @@ $('#connectButton').addEventListener('click', connectBluetooth);
 $('#disconnectButton').addEventListener('click', disconnectBluetooth);
 $('#saveCameraPackage').addEventListener('click', saveCameraPackage);
 $('#launchCamera').addEventListener('click', launchCameraApp);
+
+$('#exportSupport').addEventListener('click', exportSupportPackage);
+$('#exportBackup').addEventListener('click', () => exportConfiguration(appConfig));
+$('#importBackupFile').addEventListener('change', importBackupFile);
+$('#assetUpload').addEventListener('change', handleAssetUpload);
+$('#saveRelayConfig').addEventListener('click', saveRelayConfig);
+$('#addAutomation').addEventListener('click', addAutomationDraft);
 
 function updateClock() {
   const now = new Date();

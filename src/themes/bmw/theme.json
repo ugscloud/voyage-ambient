@@ -1,0 +1,9 @@
+{
+  "id": "bmw",
+  "name": "BMW Inspired",
+  "version": "0.1.0",
+  "status": "planned",
+  "ownerEditable": true,
+  "customerEditable": false,
+  "description": "Pasta reservada para um tema futuro. Ainda não implementado."
+}
