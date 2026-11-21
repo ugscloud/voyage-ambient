@@ -1,0 +1,45 @@
+VOYAGE AMBIENT EXPERIENCE - PACOTE VITE + BLE
+
+O QUE ESTE PACOTE CONTEM
+- index.html: entrada do projeto Vite.
+- src/main.js: interface e controles, incluindo conexao Bluetooth BLE.
+- src/style.css: visual responsivo inspirado na organizacao do Land Rover Pivi.
+- esp32/VoyageAmbientBLE.ino: firmware BLE para o ESP32-S3.
+
+COMO APLICAR NO SEU STACKBLITZ ATUAL
+Seu projeto ja esta rodando com Vite. Na arvore de arquivos, substitua SOMENTE:
+1. index.html (arquivo da raiz)
+2. src/main.js
+3. src/style.css
+
+Mantenha package.json, package-lock.json, node_modules, vite.config.js e os demais arquivos que ja existem.
+O StackBlitz/Vite deve recarregar a pre-visualizacao automaticamente. Nao e necessario instalar pacotes novos.
+
+BLUETOOTH - PROTOCOLO
+O app procura um dispositivo BLE que anuncie o servico UUID:
+7b9e0001-7a3d-4f5b-9c2a-6e1d0a5b0001
+Caracteristica de escrita/notificacao:
+7b9e0002-7a3d-4f5b-9c2a-6e1d0a5b0001
+Nome anunciado pelo ESP32: Voyage Ambient
+
+FIRMWARE DO ESP32
+1. Abra esp32/VoyageAmbientBLE.ino no Arduino IDE.
+2. Placa: ESP32S3 Dev Module.
+3. Porta: selecione a porta atual do seu ESP32.
+4. Mantenha a biblioteca Adafruit NeoPixel instalada.
+5. A biblioteca BLEDevice faz parte do pacote de placas ESP32 da Espressif.
+6. O sketch considera 5 LEDs WS2812B em sequencia, pino de dados GPIO 12.
+7. Carregue o sketch no ESP32. Ele anunciara o BLE como "Voyage Ambient".
+
+TESTE DO APLICATIVO
+1. Abra a pre-visualizacao do StackBlitz em uma nova aba do Chrome, usando HTTPS.
+2. Clique em Configuracoes > Conectar ESP32.
+3. Escolha "Voyage Ambient" na janela do Bluetooth.
+4. Volte a Iluminacao e altere cor, intensidade ou efeito.
+
+IMPORTANTE / LIMITACOES ATUAIS
+- O controle BLE pela pagina usa Web Bluetooth. Funciona apenas em navegadores compativeis e em contexto seguro HTTPS. A pre-visualizacao incorporada do editor pode bloquear o Bluetooth; se isso ocorrer, abra a URL da pre-visualizacao em uma nova aba.
+- A multimidia Android pode nao oferecer Web Bluetooth no navegador nativo. Para a versao APK, sera necessario usar comunicacao BLE nativa Android via Capacitor/plugin.
+- A instalacao atual dos LEDs esta em uma unica sequencia de dados pelo GPIO 12. Por isso cor, brilho, ligar/desligar e efeitos controlam todos os cinco LEDs juntos. As zonas independentes ainda nao estao implementadas.
+- O painel OBD2 e visual nesta versao; a integracao com o scanner sera feita separadamente.
+- Antes de trocar o firmware, salve uma copia do sketch antigo. Mantenha a alimentacao 5 V dos LEDs separada do pino 3V3 do ESP32 e mantenha GND comum.
