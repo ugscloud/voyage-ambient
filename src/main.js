@@ -1,4 +1,6 @@
 import './style.css';
+import './editor/editor.css';
+import { createEditorMarkup, initVisualEditor, openVisualEditor } from './editor/editor-ui.js';
 import { loadConfig, saveConfig, updateConfig, validateBackup } from './core/config-store.js';
 import { VoyageBleClient } from './core/ble-client.js';
 import { THEMES } from './core/theme-registry.js';
@@ -188,8 +190,9 @@ app.innerHTML = `
       </section>
 
       <section class="view" id="view-developer">
-        <div class="page-title-row"><div><div class="eyebrow">FERRAMENTAS DO PROPRIETÁRIO</div><h1>Modo desenvolvedor</h1><p>Configuração, biblioteca de recursos e diagnóstico do Voyage Ambient.</p></div><span class="count-label">BASE DO SISTEMA • v0.3</span></div>
+        <div class="page-title-row"><div><div class="eyebrow">FERRAMENTAS DO PROPRIETÁRIO</div><h1>Modo desenvolvedor</h1><p>Configuração, biblioteca de recursos e diagnóstico do Voyage Ambient.</p></div><span class="count-label">BASE DO SISTEMA • v0.4</span></div>
         <div class="dev-notice"><b>Área de desenvolvimento ativa.</b> Os temas padrão são editáveis neste modo. Antes da comercialização, esta área deverá receber autenticação de proprietário e permissões de produção.</div>
+        <button class="editor-entry-button" data-go="editor"><span class="editor-entry-icon">✦</span><span><b>ABRIR EDITOR VISUAL</b><small>Personalize temas, organize widgets, imagens, menus e pop-ups</small></span><strong>↗</strong></button>
         <div class="dev-grid">
           <article class="pivi-panel dev-card">
             <span class="eyebrow">EXPORTAÇÃO PARA ASSISTÊNCIA</span><h2>Pacote para continuar o desenvolvimento</h2>
@@ -202,7 +205,7 @@ app.innerHTML = `
             <span class="eyebrow">ARQUITETURA ATUAL</span><h2>Estado do ecossistema</h2>
             <div class="dev-stat-row"><span>Núcleo web</span><b>Organizado</b></div>
             <div class="dev-stat-row"><span>BLE iluminação legado</span><b class="dev-good">Compatibilidade preservada</b></div>
-            <div class="dev-stat-row"><span>Editor visual completo</span><b class="dev-pending">Próxima etapa</b></div>
+            <div class="dev-stat-row"><span>Editor visual</span><b class="dev-good">Primeira versão disponível</b></div>
             <div class="dev-stat-row"><span>OTA Wi-Fi / BLE</span><b class="dev-pending">Ainda não implementado</b></div>
             <div class="dev-stat-row"><span>APK Android / launcher</span><b class="dev-pending">Ainda não implementado</b></div>
           </article>
@@ -239,6 +242,8 @@ app.innerHTML = `
         </div>
       </section>
 
+      ${createEditorMarkup()}
+
       <section class="view" id="view-settings">
         <div class="page-title-row"><div><div class="eyebrow">SYSTEM SETTINGS</div><h1>Configurações</h1><p>Conexões e preferências do Voyage Ambient.</p></div></div>
         <article class="pivi-panel settings-panel">
@@ -246,8 +251,8 @@ app.innerHTML = `
           <div class="settings-row"><div><b>Estado da conexão</b><small id="settingsConnection">Nenhum controlador conectado</small></div><button class="secondary-button" id="disconnectButton" disabled>DESCONECTAR</button></div>
           <div class="settings-row"><div><b>Aplicativo de câmera</b><small id="savedCameraPackage">Identificador ainda não configurado</small></div><button class="secondary-button" data-go="camera">CONFIGURAR</button></div>
           <div class="settings-row"><div><b>Estilo visual</b><small>Land Rover • Pivi inspired</small></div><button class="secondary-button" data-go="modes">ALTERAR ESTILO</button></div>
-          <div class="settings-row"><div><b>Ferramentas do proprietário</b><small>Editor em preparação, módulos, backups e exportação</small></div><button class="secondary-button" data-go="developer">ABRIR DESENVOLVEDOR</button></div>
-          <div class="settings-row"><div><b>Versão</b><small>Voyage Ambient • núcleo modular • v0.3.0</small></div><span class="version-mark">0.3</span></div>
+          <div class="settings-row"><div><b>Ferramentas do proprietário</b><small>Editor visual, módulos, backups e exportação</small></div><button class="secondary-button" data-go="developer">ABRIR DESENVOLVEDOR</button></div>
+          <div class="settings-row"><div><b>Versão</b><small>Voyage Ambient • núcleo modular • v0.4.0</small></div><span class="version-mark">0.4</span></div>
         </article>
         <p class="small-note settings-footnote">A conexão BLE via navegador requer suporte a Web Bluetooth e HTTPS. Algumas multimídias Android exigem uma versão APK com Bluetooth nativo.</p>
       </section>
@@ -305,11 +310,11 @@ function render() {
   const color = state.color;
   document.documentElement.style.setProperty('--ambient', color);
   document.documentElement.style.setProperty('--ambient-soft', `${color}44`);
-  $('#homeMood').textContent = `${state.profile} • ${colorName(color).toUpperCase()}`;
-  $('#homeBrightness').textContent = `${state.brightness}%`;
-  $('#homePowerText').textContent = state.powered ? 'SISTEMA LIGADO' : 'SISTEMA DESLIGADO';
-  $('#homeColorDot').style.background = color;
-  $('#homeGlow').style.background = `radial-gradient(ellipse, ${color}88 0%, ${color}00 70%)`;
+  if ($('#homeMood')) $('#homeMood').textContent = `${state.profile} • ${colorName(color).toUpperCase()}`;
+  if ($('#homeBrightness')) $('#homeBrightness').textContent = `${state.brightness}%`;
+  if ($('#homePowerText')) $('#homePowerText').textContent = state.powered ? 'SISTEMA LIGADO' : 'SISTEMA DESLIGADO';
+  if ($('#homeColorDot')) $('#homeColorDot').style.background = color;
+  if ($('#homeGlow')) $('#homeGlow').style.background = `radial-gradient(ellipse, ${color}88 0%, ${color}00 70%)`;
   $('#brightness').value = String(state.brightness);
   $('#brightnessValue').textContent = `${state.brightness}%`;
   $('#speed').value = String(state.speed);
@@ -341,6 +346,7 @@ function setView(view) {
   $$('.rail-button').forEach((button) => button.classList.toggle('active', button.dataset.view === view));
   if (view === 'camera') $('#cameraPackage').value = state.cameraPackage;
   if (view === 'developer') refreshDeveloperView();
+  if (view === 'editor') openVisualEditor();
 }
 
 function sendCommand(command) {
@@ -613,6 +619,14 @@ function updateClock() {
   $('#clock').textContent = new Intl.DateTimeFormat('pt-BR', { hour: '2-digit', minute: '2-digit' }).format(now);
   $('#dateLabel').textContent = new Intl.DateTimeFormat('pt-BR', { weekday: 'long', day: '2-digit', month: 'short' }).format(now).replace('.', '').toUpperCase();
 }
+
+
+initVisualEditor({
+  getConfig: () => appConfig,
+  onConfigChange: (nextConfig) => { appConfig = nextConfig; },
+  toast,
+  setView,
+});
 
 renderPalette();
 renderMoodCards();

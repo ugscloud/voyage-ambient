@@ -59,3 +59,21 @@ test('UUIDs e comandos BLE legados permanecem compatíveis', () => {
   assert.equal(BLE_CHARACTERISTIC_UUID, '7b9e0002-7a3d-4f5b-9c2a-6e1d0a5b0001');
   assert.deepEqual(BLE_COMMANDS, ['POWER', 'COLOR', 'BRIGHTNESS', 'EFFECT', 'SPEED', 'PING']);
 });
+
+import { createDefaultEditorLayout, sortEditorItems } from '../src/editor/editor-ui.js';
+
+test('editor cria layouts independentes por tema com telas e estilos editáveis', () => {
+  const landRover = createDefaultEditorLayout('land-rover');
+  const bmw = createDefaultEditorLayout('bmw');
+  assert.equal(landRover.themeId, 'land-rover');
+  assert.equal(bmw.themeId, 'bmw');
+  assert.ok(landRover.screens.home.length >= 3);
+  assert.ok(landRover.screens.apps.length >= 5);
+  assert.ok(landRover.style.accent.startsWith('#'));
+  assert.notEqual(landRover.style.accent, bmw.style.accent);
+});
+
+test('editor ordena os widgets pela posição definida pelo proprietário', () => {
+  const sorted = sortEditorItems([{ id: 'b', order: 2 }, { id: 'a', order: 1 }, { id: 'c', order: 3 }]);
+  assert.deepEqual(sorted.map((item) => item.id), ['a', 'b', 'c']);
+});

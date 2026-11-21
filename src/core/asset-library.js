@@ -57,3 +57,13 @@ export async function deleteAsset(id) {
     tx.onerror = () => { const error = tx.error; db.close(); reject(error); };
   });
 }
+
+export async function getAsset(id) {
+  const db = await openDatabase();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE, 'readonly');
+    const request = tx.objectStore(STORE).get(id);
+    request.onsuccess = () => { db.close(); resolve(request.result || null); };
+    request.onerror = () => { const error = request.error; db.close(); reject(error); };
+  });
+}

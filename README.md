@@ -1,4 +1,4 @@
-# Voyage Ambient — Base modular 0.3.0
+# Voyage Ambient — Base modular 0.4.0
 
 Esta entrega organiza o projeto web existente em uma base extensível, preservando a tela Land Rover atual e a comunicação BLE já usada pelo ESP32-S3.
 
@@ -17,7 +17,7 @@ Esta entrega organiza o projeto web existente em uma base extensível, preservan
 
 ## Ainda não implementado
 
-- Editor visual completo com arrastar e soltar, layouts e pop-ups configuráveis.
+- Editor visual de proprietário com widgets, prioridade, ordenação, imagens e pop-ups: primeira versão incluída abaixo.
 - Temas BMW/Mercedes com aparência final.
 - Protocolo universal Voyage Module Protocol no firmware.
 - Descoberta real de módulos auxiliares e comandos de relés.
@@ -69,8 +69,8 @@ O botão `Gerar pacote para enviar ao ChatGPT` cria um JSON com configuração, 
 ## Próxima ordem recomendada
 
 1. Validar esta base no GitHub Pages e no iPhone/Android.
-2. Modularizar por completo componentes de interface sem redesenhar ainda o tema.
-3. Criar editor visual e sistema de permissões proprietário/cliente.
+2. Refinar o editor visual, incluir sincronização de assets e testar layouts personalizados.
+3. Desenvolver as identidades visuais completas dos temas BMW e outros.
 4. Definir o protocolo Voyage Module Protocol e atualizar o firmware com teste físico.
 5. Implementar OTA seguro e somente depois gerar APK Capacitor.
 
@@ -80,8 +80,31 @@ O botão `Gerar pacote para enviar ao ChatGPT` cria um JSON com configuração, 
 npm test
 ```
 
-Os testes verificam a configuração base, migração das preferências antigas, backup, modelo de cinco relés, rascunho de automação e preservação dos UUIDs/comandos BLE legados. O workflow do GitHub executa os testes antes da compilação.
+Os oito testes verificam a configuração base, migração das preferências antigas, backup, modelo de cinco relés, rascunho de automação, preservação dos UUIDs/comandos BLE legados e modelo/ordenação dos layouts do editor. O workflow do GitHub executa os testes antes da compilação.
 
 ## Proteção do firmware
 
 O repositório GitHub usado para publicar o site está público. Por isso, o código-fonte `.ino` do controlador não faz parte deste pacote público e está listado no `.gitignore`. Mantenha a fonte do firmware em uma cópia privada/local. Não envie `.ino`, chaves de assinatura, segredos ou credenciais para este repositório público.
+
+## Editor visual do proprietário — 0.4.0
+
+O modo Desenvolvedor agora possui uma primeira versão funcional do Editor Visual:
+
+- Edição separada por tema: Land Rover, BMW e tema personalizado.
+- Criação de novos temas personalizados a partir do tema em edição.
+- Telas editáveis: Tela inicial, Aplicativos e Pop-ups.
+- Biblioteca de widgets prontos para adicionar com um toque.
+- Propriedades: nome, descrição, ícone, destino, prioridade (1 Principal / 2 Secundário / 3 Apoio), tamanho, visibilidade e pop-up associado.
+- Reordenação por botões Subir/Descer, além de duplicar e remover componentes.
+- Upload e seleção de imagens locais para widgets (limite de 20 MB por imagem nesta primeira versão).
+- Aparência do tema: cor de destaque, fundo, painel e arredondamento.
+- Pré-visualização no editor, persistência no navegador e aplicação do layout à tela inicial/menu quando o tema é ativado.
+- Pop-ups com título, mensagem, botão e destino opcional; podem ser associados a um widget.
+
+### Limites explícitos da primeira versão do editor
+
+- A biblioteca de arquivos usa IndexedDB local ao navegador/dispositivo. Imagens adicionadas no iPhone não aparecem automaticamente no Android ou em outro computador; exportação e sincronização de assets entre dispositivos serão uma etapa separada.
+- Os widgets de hardware são elementos de interface. Adicionar um botão não cria por si só suporte físico no ESP32; cada função nova exige integração do protocolo e firmware.
+- Land Rover continua como tema visual mais desenvolvido. BMW e temas personalizados já podem guardar layout e paleta próprios, mas a identidade visual completa e componentes exclusivos desses temas serão refinados posteriormente.
+- A prévia do editor mostra a composição; para tornar um tema a tela ativa, use **Aplicar tema à central**.
+- O editor usa controles de ordenação por botões (Subir/Descer), pensados para também funcionar bem em telas de toque; arrastar e soltar poderá ser adicionado depois.

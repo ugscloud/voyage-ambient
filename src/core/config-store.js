@@ -14,7 +14,7 @@ const relayOutputs = Array.from({ length: 5 }, (_, index) => ({
 export function createDefaultConfig() {
   return {
     schemaVersion: CONFIG_SCHEMA_VERSION,
-    app: { id: 'voyage-ambient', version: '0.3.0', name: 'Voyage Ambient' },
+    app: { id: 'voyage-ambient', version: '0.4.0', name: 'Voyage Ambient' },
     theme: { activeId: 'land-rover', ownerEditingEnabled: true },
     vehicle: { name: 'Volkswagen Voyage', model3dId: null },
     lighting: {
