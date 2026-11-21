@@ -60,7 +60,7 @@ test('UUIDs e comandos BLE legados permanecem compatíveis', () => {
   assert.deepEqual(BLE_COMMANDS, ['POWER', 'COLOR', 'BRIGHTNESS', 'EFFECT', 'SPEED', 'PING']);
 });
 
-import { createDefaultEditorLayout, sortEditorItems } from '../src/editor/editor-ui.js';
+import { createDefaultEditorLayout, sortEditorItems, normalizePopupStyleExport, normalizeWidgetStyleExport, collectThemeAssetIds, remapThemeAssetIds } from '../src/editor/editor-ui.js';
 
 test('editor cria layouts independentes por tema com telas e estilos editáveis', () => {
   const landRover = createDefaultEditorLayout('land-rover');
@@ -76,4 +76,38 @@ test('editor cria layouts independentes por tema com telas e estilos editáveis'
 test('editor ordena os widgets pela posição definida pelo proprietário', () => {
   const sorted = sortEditorItems([{ id: 'b', order: 2 }, { id: 'a', order: 1 }, { id: 'c', order: 3 }]);
   assert.deepEqual(sorted.map((item) => item.id), ['a', 'b', 'c']);
+});
+
+
+test('editor normaliza dimensões, transparência e tipografia de pop-ups sem aceitar valores inválidos', () => {
+  const style = normalizePopupStyleExport({ widthPct: 140, cardOpacity: 110, titleSize: 90, position: 'invalid', surfaceColor: 'red' });
+  assert.equal(style.widthPct, 100);
+  assert.equal(style.cardOpacity, 100);
+  assert.equal(style.titleSize, 56);
+  assert.equal(style.position, 'center');
+  assert.equal(style.surfaceColor, '#263B46');
+  assert.equal(style.buttonFullWidth, false);
+  assert.equal(style.imageOpacity, 35);
+});
+
+test('editor limita estilos visuais de widgets a valores seguros', () => {
+  const style = normalizeWidgetStyleExport({ minHeight: -5, opacity: 150, radius: 100, imageFit: 'invalid' });
+  assert.equal(style.minHeight, 70);
+  assert.equal(style.opacity, 100);
+  assert.equal(style.radius, 42);
+  assert.equal(style.imageFit, 'cover');
+  assert.equal(style.fontFamily, 'Inter, Arial, sans-serif');
+});
+
+
+test('pacote universal inclui imagens dos widgets e também dos pop-ups', () => {
+  const layout = { screens: { home: [{ imageAssetId: 'home-img' }], apps: [{ imageAssetId: 'app-img' }] }, popups: [{ style: { imageAssetId: 'popup-img' } }] };
+  assert.deepEqual(new Set(collectThemeAssetIds(layout)), new Set(['home-img', 'app-img', 'popup-img']));
+});
+
+test('importação remapeia IDs de imagem nos widgets e nas imagens dos pop-ups', () => {
+  const layout = { screens: { home: [{ imageAssetId: 'old-home' }], apps: [] }, popups: [{ style: { imageAssetId: 'old-popup' } }] };
+  remapThemeAssetIds(layout, new Map([['old-home', 'new-home'], ['old-popup', 'new-popup']]));
+  assert.equal(layout.screens.home[0].imageAssetId, 'new-home');
+  assert.equal(layout.popups[0].style.imageAssetId, 'new-popup');
 });

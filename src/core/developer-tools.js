@@ -2,7 +2,7 @@ import { BLE_SERVICE_UUID, BLE_CHARACTERISTIC_UUID, BLE_DEVICE_NAME, BLE_COMMAND
 import { MODULE_PROTOCOL_VERSION } from './module-registry.js';
 import { THEMES } from './theme-registry.js';
 
-export const APP_VERSION = '0.3.0-foundation';
+export const APP_VERSION = '0.4.0';
 
 function downloadJson(filename, payload) {
   const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });

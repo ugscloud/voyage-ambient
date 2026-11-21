@@ -15,8 +15,19 @@ function openDatabase() {
   });
 }
 
+let persistenceRequested = false;
+
+async function requestPersistentStorage() {
+  if (persistenceRequested) return;
+  persistenceRequested = true;
+  try {
+    if (navigator.storage?.persist) await navigator.storage.persist();
+  } catch { /* O navegador pode negar persistência; exportação continua sendo o backup universal. */ }
+}
+
 export async function saveAsset(file, category = 'other') {
   if (!(file instanceof File)) throw new Error('Arquivo inválido.');
+  await requestPersistentStorage();
   const record = {
     id: `${Date.now()}-${crypto.randomUUID?.() || Math.random().toString(16).slice(2)}`,
     name: file.name,
