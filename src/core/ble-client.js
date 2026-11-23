@@ -3,7 +3,7 @@
 export const BLE_SERVICE_UUID = '7b9e0001-7a3d-4f5b-9c2a-6e1d0a5b0001';
 export const BLE_CHARACTERISTIC_UUID = '7b9e0002-7a3d-4f5b-9c2a-6e1d0a5b0001';
 export const BLE_DEVICE_NAME = 'Voyage Ambient';
-export const BLE_COMMANDS = ['POWER', 'COLOR', 'BRIGHTNESS', 'EFFECT', 'SPEED', 'PING'];
+export const BLE_COMMANDS = ['POWER', 'COLOR', 'BRIGHTNESS', 'EFFECT', 'SPEED', 'PING', 'INFO', 'LED_TEST', 'LC'];
 
 export class VoyageBleClient {
   constructor(callbacks = {}) {

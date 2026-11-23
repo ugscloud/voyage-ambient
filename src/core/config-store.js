@@ -1,6 +1,8 @@
+import { createDefaultLedMap, normalizeLedMap } from './led-mapping.js';
+
 export const CONFIG_KEY = 'voyage-ambient-config-v2';
 export const LEGACY_KEY = 'voyage-ambient-settings-v1';
-export const CONFIG_SCHEMA_VERSION = 2;
+export const CONFIG_SCHEMA_VERSION = 3;
 
 const relayOutputs = Array.from({ length: 5 }, (_, index) => ({
   id: `relay-${index + 1}`,
@@ -25,6 +27,7 @@ export function createDefaultConfig() {
       speed: 45,
       profile: 'MOONLIGHT',
       zones: { front: '#91B4D8', rear: '#91B4D8', linked: true },
+      ledMap: createDefaultLedMap(),
     },
     camera: { frontPackage: '', rearPackage: '', showFrontIn3d: false, showRearIn3d: false },
     modules: [
@@ -62,7 +65,11 @@ function mergeKnownConfig(defaults, saved) {
     app: { ...defaults.app, ...(saved.app || {}) },
     theme: { ...defaults.theme, ...(saved.theme || {}) },
     vehicle: { ...defaults.vehicle, ...(saved.vehicle || {}) },
-    lighting: { ...defaults.lighting, ...(saved.lighting || {}) },
+    lighting: {
+      ...defaults.lighting, ...(saved.lighting || {}),
+      zones: { ...defaults.lighting.zones, ...(saved.lighting?.zones || {}) },
+      ledMap: normalizeLedMap(saved.lighting?.ledMap || defaults.lighting.ledMap),
+    },
     camera: { ...defaults.camera, ...(saved.camera || {}) },
     modules: Array.isArray(saved.modules) ? saved.modules : defaults.modules,
     automations: Array.isArray(saved.automations) ? saved.automations : defaults.automations,

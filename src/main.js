@@ -8,6 +8,8 @@ import { createRelayModuleTemplate, normalizeOutput } from './core/module-regist
 import { createAutomationDraft } from './core/automation-store.js';
 import { saveAsset, listAssets, deleteAsset } from './core/asset-library.js';
 import { exportConfiguration, exportDeveloperPackage } from './core/developer-tools.js';
+import { normalizeLedMap, makeLedTestCommand, makeLedColorCommand, parseFirmwareInfo } from './core/led-mapping.js';
+import cabinImageUrl from './themes/land-rover/land-rover-cabin.webp';
 
 // A configuração é única e versionada. A migração preserva as preferências da versão anterior.
 let appConfig = loadConfig();
@@ -53,6 +55,10 @@ function loadSavedState() {
       linked: Boolean(appConfig.lighting.zones?.linked ?? true),
     },
     cameraPackage: appConfig.camera.frontPackage || '',
+    ledMap: normalizeLedMap(appConfig.lighting.ledMap),
+    firmwareVersion: 'Não identificado',
+    firmwareFeatures: [],
+    firmwareLedCount: 5,
   };
 }
 
@@ -60,6 +66,8 @@ const state = loadSavedState();
 state.zones ||= { front: state.color, rear: state.color, linked: true };
 let bleClient;
 let toastTimer;
+let selectedLedIndex = 1;
+let ledTestSequenceAbort = false;
 
 const app = document.querySelector('#app');
 app.innerHTML = `
@@ -186,12 +194,13 @@ app.innerHTML = `
 
               <section class="ambient-tab-panel" id="lighting-panel-zonas" data-light-panel="zonas" hidden>
                 <div class="ambient-panel-heading"><div><span class="eyebrow">PERSONALIZAÇÃO POR ÁREA</span><h2>Zonas de iluminação</h2><p>Defina uma cor para a frente e outra para a traseira.</p></div><span class="panel-counter">2 ZONAS</span></div>
-                <div class="ambient-zone-preview"><div class="ambient-zone-car-art"><span class="zone-track zone-track-front"></span><span class="zone-track zone-track-rear"></span><span class="zone-seat-art seat-front-a"></span><span class="zone-seat-art seat-front-b"></span><span class="zone-seat-art seat-rear-a"></span><span class="zone-seat-art seat-rear-b"></span><span class="zone-console-art"></span></div><div class="ambient-zone-preview-caption"><span>VISTA SUPERIOR DO HABITÁCULO</span><small>PRÉVIA ILUSTRATIVA</small></div></div>
+                <div class="ambient-zone-preview led-zone-preview"><img class="ambient-zone-photo" src="${cabinImageUrl}" alt="Interior do veículo visto da cabine"/><div class="ambient-zone-photo-shade"></div><div class="led-zone-markers" id="lightingLedMarkers" aria-label="Posições configuradas dos LEDs"></div><div class="ambient-zone-preview-caption"><span>MAPA DE ILUMINAÇÃO DO HABITÁCULO</span><small>PRÉVIA CONFIGURÁVEL</small></div></div>
                 <div class="ambient-zone-controls">
                   <article class="ambient-zone-control"><div class="ambient-zone-top"><span class="zone-index">01</span><div><b>Dianteira</b><small>Motorista e passageiro</small></div><span class="zone-swatch" id="frontZoneSwatch"></span></div><div class="ambient-zone-input-row"><label for="frontZoneColor">Cor dianteira</label><input id="frontZoneColor" type="color" value="#91B4D8"/><strong id="frontZoneHex">#91B4D8</strong></div></article>
                   <article class="ambient-zone-control"><div class="ambient-zone-top"><span class="zone-index">02</span><div><b>Traseira</b><small>Banco traseiro</small></div><span class="zone-swatch" id="rearZoneSwatch"></span></div><div class="ambient-zone-input-row"><label for="rearZoneColor">Cor traseira</label><input id="rearZoneColor" type="color" value="#91B4D8"/><strong id="rearZoneHex">#91B4D8</strong></div></article>
                 </div>
-                <div class="ambient-zone-footer"><button class="ambient-inline-action" id="syncZoneColors" type="button">⛓ UNIFICAR CORES</button><p id="zoneFirmwareNote">As cores por zona são salvas no aplicativo. O firmware atual ainda envia uma cor única para os cinco LEDs; a separação física será habilitada na atualização do ESP32.</p></div>
+                <div class="ambient-zone-footer"><button class="ambient-inline-action" id="syncZoneColors" type="button">⛓ UNIFICAR CORES</button><p id="zoneFirmwareNote">As cores por zona são salvas no aplicativo. O firmware atual ainda envia uma cor única para os cinco LEDs; o firmware 0.5.0 habilita o controle por pixel.</p></div>
+                <div class="lighting-led-summary"><div><b>Mapeamento físico dos LEDs</b><small>Configure a posição e o nome de cada ponto no Modo Desenvolvedor.</small></div><button class="ambient-inline-action" type="button" data-go="developer">ABRIR MAPEAMENTO ↗</button></div>
               </section>
 
               <section class="ambient-tab-panel" id="lighting-panel-efeitos" data-light-panel="efeitos" hidden>
@@ -278,6 +287,29 @@ app.innerHTML = `
             <div class="dev-section-heading"><div><span class="eyebrow">CATÁLOGO DE HARDWARE</span><h2>Módulos reconhecidos e modelos</h2></div><span class="count-label" id="moduleCount">—</span></div>
             <div id="moduleList" class="dev-module-list"></div>
           </article>
+          <article class="pivi-panel dev-card dev-wide led-mapping-card">
+            <div class="dev-section-heading"><div><span class="eyebrow">ILUMINAÇÃO • HARDWARE</span><h2>Editor de zonas e mapeamento dos LEDs</h2><p>Associe cada pixel físico a uma posição do carro. Arraste os pontos sobre a imagem para ajustar o local.</p></div><span class="count-label" id="ledFirmwareBadge">FIRMWARE LEGADO</span></div>
+            <div class="led-map-layout">
+              <div class="led-map-stage" id="ledMapStage">
+                <img src="${cabinImageUrl}" alt="Interior do veículo para mapear os LEDs" draggable="false"/>
+                <div class="led-map-shade"></div>
+                <div class="led-map-markers" id="ledMapMarkers"></div>
+                <div class="led-map-stage-label"><span>VISTA DO HABITÁCULO</span><small>SELECIONE OU ARRASTE UM PONTO</small></div>
+              </div>
+              <div class="led-map-side">
+                <div class="led-map-list-head"><b>LEDs reconhecidos</b><small>5 CANAIS FÍSICOS</small></div>
+                <div class="led-map-list" id="ledMapList"></div>
+                <div class="led-map-editor" id="ledMapEditor"></div>
+              </div>
+            </div>
+            <div class="led-tester-panel">
+              <div class="led-tester-head"><div><b>Testador de LEDs</b><small>Identifique fisicamente cada fita ou ponto antes de nomear.</small></div><div class="led-tester-actions"><button class="secondary-button" id="startLedSequence" type="button">TESTAR EM SEQUÊNCIA</button><button class="secondary-button" id="stopLedTest" type="button" disabled>PARAR</button></div></div>
+              <div class="led-tester-list" id="ledTesterList"></div>
+              <p class="small-note" id="ledTesterStatus">O teste físico individual requer o firmware Voyage Ambient 0.5.0. Com o firmware atual, os cinco LEDs ainda acendem juntos.</p>
+            </div>
+            <div class="led-map-save-row"><span>As posições e nomes ficam salvos na configuração deste navegador e entram no pacote de exportação do desenvolvedor.</span><button class="primary-button" id="saveLedMap" type="button">SALVAR MAPEAMENTO</button></div>
+          </article>
+
           <article class="pivi-panel dev-card dev-wide">
             <div class="dev-section-heading"><div><span class="eyebrow">MODELO DE MÓDULO</span><h2>Configuração de cinco relés</h2></div><span class="count-label">RASCUNHO LOCAL</span></div>
             <p>Defina nomes e comportamentos para um futuro módulo. Estas opções ficam salvas no navegador, mas ainda não são enviadas ao ESP32 nem acionam relés físicos.</p>
@@ -340,11 +372,35 @@ function toast(message) {
 bleClient = new VoyageBleClient({
   onConnectionChange: (connected) => {
     state.connected = connected;
+    if (!connected) { state.firmwareFeatures = []; state.firmwareVersion = 'Não identificado'; ledTestSequenceAbort = false; }
     render();
+    updateLedFirmwareStatus();
     if (!connected) toast('ESP32 desconectado.');
   },
-  onMessage: (message) => {
-    if (message !== 'CONNECTED') toast(`ESP32: ${message}`);
+  onMessage: async (message) => {
+    const firmwareInfo = parseFirmwareInfo(message);
+    if (firmwareInfo) {
+      state.firmwareVersion = firmwareInfo.version;
+      state.firmwareLedCount = firmwareInfo.ledCount;
+      state.firmwareFeatures = firmwareInfo.features;
+      updateLedFirmwareStatus();
+      if (state.firmwareFeatures.includes('LED_COLOR')) {
+        for (const item of state.ledMap) await sendCommand(makeLedColorCommand(item.index, item.color));
+      }
+      toast(`Controlador identificado: firmware ${state.firmwareVersion}.`);
+      return;
+    }
+    if (message.startsWith('LED_TEST_STARTED=')) {
+      if ($('#ledTesterStatus')) $('#ledTesterStatus').textContent = `Testando LED ${message.split('=')[1]}… observe qual ponto acendeu.`;
+      return;
+    }
+    if (message.startsWith('LED_TEST_DONE=')) {
+      if ($('#ledTesterStatus')) $('#ledTesterStatus').textContent = `Teste do LED ${message.split('=')[1]} concluído.`;
+      return;
+    }
+    if (message.startsWith('LC_OK=')) return;
+    if (message === 'CONNECTED' || message === 'PONG') return;
+    toast(`ESP32: ${message}`);
   },
 });
 
@@ -357,7 +413,7 @@ function saveState() {
   const result = updateConfig(appConfig, {
     lighting: {
       powered: state.powered, color: state.color, brightness: state.brightness,
-      effect: state.effect, speed: state.speed, profile: state.profile, zones: { ...state.zones },
+      effect: state.effect, speed: state.speed, profile: state.profile, zones: { ...state.zones }, ledMap: normalizeLedMap(state.ledMap),
     },
     camera: { frontPackage: state.cameraPackage },
   });
@@ -423,6 +479,7 @@ function render() {
   $('#cameraPackage').value = state.cameraPackage;
   $$('.effect-button').forEach((button) => button.classList.toggle('active', button.dataset.effect === state.effect));
   $$('.color-choice').forEach((button) => button.classList.toggle('selected', button.dataset.color.toLowerCase() === color.toLowerCase()));
+  renderLedLightingMarkers();
 }
 
 function setLightingTab(tab) {
@@ -463,20 +520,28 @@ async function sendCurrentState() {
   await sendCommand(`BRIGHTNESS=${state.brightness}`);
   await sendCommand(`EFFECT=${state.effect}`);
   await sendCommand(`SPEED=${state.speed}`);
+  if (state.firmwareFeatures.includes('LED_COLOR')) {
+    for (const item of normalizeLedMap(state.ledMap)) await sendCommand(makeLedColorCommand(item.index, item.color));
+  }
 }
 
 function setColor(color, name = colorName(color)) {
   state.color = color.toLowerCase();
   state.profile = name.toUpperCase();
-  if (state.zones.linked) state.zones = { ...state.zones, front: state.color, rear: state.color };
+  if (state.zones.linked) {
+    state.zones = { ...state.zones, front: state.color, rear: state.color };
+    state.ledMap = normalizeLedMap(state.ledMap).map((item) => ({ ...item, color: state.color }));
+  }
   saveState(); render();
   const [r, g, b] = hexToRgb(state.color);
   sendCommand(`COLOR=${r},${g},${b}`);
+  if (state.firmwareFeatures.includes('LED_COLOR')) state.ledMap.forEach((item) => sendCommand(makeLedColorCommand(item.index, item.color)));
 }
 
 function setZoneColor(zone, color) {
   if (!['front', 'rear'].includes(zone)) return;
   state.zones = { ...state.zones, [zone]: color.toLowerCase(), linked: false };
+  state.ledMap = normalizeLedMap(state.ledMap).map((item) => item.zone === zone ? { ...item, color: color.toLowerCase() } : item);
   document.documentElement.style.setProperty(zone === 'front' ? '--front-zone' : '--rear-zone', color.toLowerCase());
   saveState();
   if (zone === 'front') {
@@ -486,7 +551,14 @@ function setZoneColor(zone, color) {
     if ($('#rearZoneHex')) $('#rearZoneHex').textContent = color.toUpperCase();
     if ($('#rearZoneSwatch')) $('#rearZoneSwatch').style.background = color;
   }
-  toast('Cor da zona salva. Para aplicar dianteira e traseira separadamente, será necessária a atualização do firmware do ESP32.');
+  const capable = state.firmwareFeatures.includes('LED_COLOR');
+  if (capable) {
+    state.ledMap.filter((item) => item.zone === zone).forEach((item) => sendCommand(makeLedColorCommand(item.index, item.color)));
+    toast(`Cor da zona ${zone === 'front' ? 'dianteira' : 'traseira'} aplicada aos LEDs mapeados.`);
+  } else {
+    toast('Cor salva no aplicativo. Para aplicar por LED, instale o firmware Voyage Ambient 0.5.0.');
+  }
+  renderLightingLedMarkers();
 }
 
 function setPower(powered) {
@@ -503,6 +575,7 @@ function applyMood(moodId) {
   state.brightness = mood.brightness;
   state.effect = mood.effect;
   state.zones = { ...state.zones, front: mood.color, rear: mood.color, linked: true };
+  state.ledMap = normalizeLedMap(state.ledMap).map((item) => ({ ...item, color: mood.color }));
   saveState(); render();
   $$('[data-mood]').forEach((button) => button.classList.toggle('active', button.dataset.mood === moodId));
   sendCurrentState();
@@ -516,10 +589,14 @@ async function connectBluetooth() {
     state.connected = true;
     render();
     await sendCurrentState();
-    toast('ESP32 conectado. Controle de iluminação ativo.');
+    await sendCommand('INFO');
+    window.setTimeout(() => { renderLedMapping(); updateLedFirmwareStatus(); }, 500);
+    toast('ESP32 conectado. Verificando recursos do controlador.');
   } catch (error) {
     state.connected = false;
+    state.firmwareFeatures = []; state.firmwareVersion = 'Não identificado';
     render();
+    updateLedFirmwareStatus();
     if (error.name === 'NotFoundError') toast('Nenhum dispositivo selecionado.');
     else toast(`Não foi possível conectar: ${error.message}`);
   }
@@ -559,6 +636,8 @@ function refreshDeveloperView() {
   renderAutomationList();
   renderThemeList();
   renderAssetList();
+  renderLedMapping();
+  updateLedFirmwareStatus();
 }
 
 function renderModuleList() {
@@ -570,6 +649,199 @@ function renderModuleList() {
       <span class="dev-status ${module.installed ? 'is-ready' : 'is-pending'}">${module.installed ? 'ATUAL' : 'MODELO'}</span>
     </div>`).join('');
   $('#moduleCount').textContent = `${appConfig.modules.length} REGISTROS`;
+}
+
+function saveLedMapConfig() {
+  state.ledMap = normalizeLedMap(state.ledMap);
+  const result = updateConfig(appConfig, { lighting: { ledMap: state.ledMap } });
+  appConfig = result.config;
+  if (!result.ok) toast('Não foi possível salvar o mapeamento dos LEDs.');
+  return result.ok;
+}
+
+function renderLedLightingMarkers() {
+  const container = $('#lightingLedMarkers');
+  if (!container) return;
+  container.innerHTML = normalizeLedMap(state.ledMap).map((led) => `
+    <button class="led-zone-marker led-zone-marker-${led.type}" type="button" data-select-led="${led.index}" title="LED ${led.index} • ${escapeHtml(led.name)}" aria-label="Editar LED ${led.index}: ${escapeHtml(led.name)}" style="left:${led.x}%;top:${led.y}%;--led-color:${led.color};--led-opacity:${led.opacity / 100};--led-length:${led.length}%;--led-thickness:${led.thickness}px"><span>${led.index}</span></button>
+  `).join('');
+}
+
+function renderLedMapping() {
+  const leds = normalizeLedMap(state.ledMap);
+  const markers = $('#ledMapMarkers');
+  const list = $('#ledMapList');
+  const editor = $('#ledMapEditor');
+  const tester = $('#ledTesterList');
+  if (!markers || !list || !editor || !tester) return;
+  const selected = leds.find((item) => item.index === selectedLedIndex) || leds[0];
+  selectedLedIndex = selected.index;
+
+  markers.innerHTML = leds.map((led) => `
+    <button class="led-map-marker led-map-marker-${led.type} ${led.index === selectedLedIndex ? 'selected' : ''}" type="button" data-map-marker="${led.index}" aria-label="Selecionar LED ${led.index}" title="LED ${led.index} • ${escapeHtml(led.name)}" style="left:${led.x}%;top:${led.y}%;--led-color:${led.color};--led-opacity:${led.opacity / 100};--led-length:${led.length}%;--led-thickness:${led.thickness}px"><span>${led.index}</span></button>
+  `).join('');
+
+  list.innerHTML = leds.map((led) => `
+    <div class="led-map-list-row ${led.index === selectedLedIndex ? 'selected' : ''}">
+      <button class="led-map-select" type="button" data-select-led="${led.index}"><i style="--led-color:${led.color}"></i><span><b>LED ${led.index}</b><small>${escapeHtml(led.name)} • ${led.zone === 'front' ? 'Dianteira' : led.zone === 'rear' ? 'Traseira' : 'Porta-malas'}</small></span></button>
+      <button class="led-map-test-small" type="button" data-test-led="${led.index}" title="Piscar LED ${led.index}" ${state.firmwareFeatures.includes('LED_TEST') && state.connected ? '' : 'disabled'}>TESTAR</button>
+    </div>
+  `).join('');
+
+  editor.innerHTML = `
+    <div class="led-editor-head"><div><span class="eyebrow">PROPRIEDADES DO PONTO</span><b>LED ${selected.index}</b></div><span class="led-editor-zone">${selected.zone === 'front' ? 'DIANTEIRA' : selected.zone === 'rear' ? 'TRASEIRA' : 'PORTA-MALAS'}</span></div>
+    <label class="led-field"><span>Nome do ponto</span><input class="text-field" maxlength="32" data-led-field="name" value="${escapeHtml(selected.name)}" /></label>
+    <div class="led-field-grid">
+      <label class="led-field"><span>Área do veículo</span><select class="text-field" data-led-field="zone"><option value="front" ${selected.zone === 'front' ? 'selected' : ''}>Dianteira</option><option value="rear" ${selected.zone === 'rear' ? 'selected' : ''}>Traseira</option><option value="trunk" ${selected.zone === 'trunk' ? 'selected' : ''}>Porta-malas</option></select></label>
+      <label class="led-field"><span>Tipo de iluminação</span><select class="text-field" data-led-field="type"><option value="strip" ${selected.type === 'strip' ? 'selected' : ''}>Fita LED</option><option value="spot" ${selected.type === 'spot' ? 'selected' : ''}>Ponto de luz</option><option value="area" ${selected.type === 'area' ? 'selected' : ''}>Área iluminada</option></select></label>
+    </div>
+    <label class="led-field"><span>Cor individual <b id="ledSelectedHex">${selected.color.toUpperCase()}</b></span><input class="led-color-input" type="color" data-led-field="color" value="${selected.color}" /></label>
+    <div class="led-field-range"><label for="ledX">Posição horizontal</label><strong>${selected.x}%</strong><input id="ledX" type="range" min="3" max="97" value="${selected.x}" data-led-field="x" /></div>
+    <div class="led-field-range"><label for="ledY">Posição vertical</label><strong>${selected.y}%</strong><input id="ledY" type="range" min="4" max="96" value="${selected.y}" data-led-field="y" /></div>
+    <div class="led-field-range"><label for="ledLength">Comprimento do facho</label><strong>${selected.length}%</strong><input id="ledLength" type="range" min="6" max="70" value="${selected.length}" data-led-field="length" /></div>
+    <div class="led-field-range"><label for="ledThickness">Espessura</label><strong>${selected.thickness}px</strong><input id="ledThickness" type="range" min="2" max="24" value="${selected.thickness}" data-led-field="thickness" /></div>
+    <div class="led-field-range"><label for="ledOpacity">Transparência / intensidade visual</label><strong>${selected.opacity}%</strong><input id="ledOpacity" type="range" min="10" max="100" value="${selected.opacity}" data-led-field="opacity" /></div>
+    <p class="led-editor-note">Arraste o ponto numerado na imagem ou use os controles de posição. O mapeamento descreve os pixels físicos da cadeia WS2812B, não os pinos GPIO.</p>
+  `;
+
+  tester.innerHTML = leds.map((led) => `
+    <button class="led-test-card ${led.index === selectedLedIndex ? 'selected' : ''}" type="button" data-select-led="${led.index}">
+      <span class="led-test-index">LED ${led.index}</span><b>${escapeHtml(led.name)}</b><small>${led.zone === 'front' ? 'Dianteira' : led.zone === 'rear' ? 'Traseira' : 'Porta-malas'}</small>
+      <span class="led-test-action" data-test-led="${led.index}" role="button" aria-label="Testar LED ${led.index}" tabindex="0">PISCAR</span>
+    </button>
+  `).join('');
+  updateLedFirmwareStatus();
+  attachLedMarkerDragging();
+}
+
+function attachLedMarkerDragging() {
+  const stage = $('#ledMapStage');
+  if (!stage) return;
+  stage.querySelectorAll('[data-map-marker]').forEach((marker) => {
+    marker.addEventListener('pointerdown', (event) => {
+      event.preventDefault();
+      selectedLedIndex = Number(marker.dataset.mapMarker);
+      marker.classList.add('dragging');
+      marker.setPointerCapture?.(event.pointerId);
+      const move = (moveEvent) => {
+        const rect = stage.getBoundingClientRect();
+        const x = Math.max(3, Math.min(97, Math.round(((moveEvent.clientX - rect.left) / rect.width) * 100)));
+        const y = Math.max(4, Math.min(96, Math.round(((moveEvent.clientY - rect.top) / rect.height) * 100)));
+        const led = state.ledMap.find((item) => item.index === selectedLedIndex);
+        if (!led) return;
+        led.x = x; led.y = y;
+        marker.style.left = `${x}%`; marker.style.top = `${y}%`;
+        const inputX = $('#ledX'); const inputY = $('#ledY');
+        if (inputX) inputX.value = String(x);
+        if (inputY) inputY.value = String(y);
+        const rangeLabels = editorRangeLabels();
+        if (rangeLabels.x) rangeLabels.x.textContent = `${x}%`;
+        if (rangeLabels.y) rangeLabels.y.textContent = `${y}%`;
+      };
+      const finish = () => {
+        marker.classList.remove('dragging');
+        marker.removeEventListener('pointermove', move);
+        marker.removeEventListener('pointerup', finish);
+        marker.removeEventListener('pointercancel', finish);
+        saveLedMapConfig();
+        renderLedLightingMarkers();
+        renderLedMapping();
+      };
+      marker.addEventListener('pointermove', move);
+      marker.addEventListener('pointerup', finish, { once: true });
+      marker.addEventListener('pointercancel', finish, { once: true });
+    });
+    marker.addEventListener('click', () => { selectedLedIndex = Number(marker.dataset.mapMarker); renderLedMapping(); });
+  });
+}
+
+function editorRangeLabels() {
+  const get = (id) => $(id)?.parentElement?.querySelector('strong');
+  return { x: get('#ledX'), y: get('#ledY') };
+}
+
+function handleLedMapField(event) {
+  const field = event.target.dataset.ledField;
+  if (!field) return;
+  const led = state.ledMap.find((item) => item.index === selectedLedIndex);
+  if (!led) return;
+  if (field === 'name' || field === 'zone' || field === 'type' || field === 'color') led[field] = event.target.value;
+  else led[field] = Number(event.target.value);
+  state.ledMap = normalizeLedMap(state.ledMap);
+  saveLedMapConfig();
+  renderLedLightingMarkers();
+  const mapMarker = $(`#ledMapMarkers [data-map-marker="${selectedLedIndex}"]`);
+  if (mapMarker) {
+    mapMarker.style.left = `${led.x}%`; mapMarker.style.top = `${led.y}%`;
+    mapMarker.style.setProperty('--led-color', led.color);
+    mapMarker.style.setProperty('--led-opacity', String(led.opacity / 100));
+    mapMarker.style.setProperty('--led-length', `${led.length}%`);
+    mapMarker.style.setProperty('--led-thickness', `${led.thickness}px`);
+    mapMarker.classList.toggle('led-map-marker-strip', led.type === 'strip');
+    mapMarker.classList.toggle('led-map-marker-spot', led.type === 'spot');
+    mapMarker.classList.toggle('led-map-marker-area', led.type === 'area');
+  }
+  // Atualiza somente a seleção/indicadores, para não roubar o foco do controle.
+  const colorHex = $('#ledSelectedHex');
+  if (colorHex) colorHex.textContent = led.color.toUpperCase();
+  const value = event.target.parentElement?.querySelector('strong');
+  if (value && ['x', 'y', 'length', 'thickness', 'opacity'].includes(field)) value.textContent = `${led[field]}${field === 'thickness' ? 'px' : '%'}`;
+  if (field === 'color' && state.firmwareFeatures.includes('LED_COLOR')) sendCommand(makeLedColorCommand(led.index, led.color));
+  if (field === 'zone') renderLedMapping();
+  renderLedLightingMarkers();
+}
+
+function updateLedFirmwareStatus() {
+  const supportsTest = state.firmwareFeatures.includes('LED_TEST');
+  const supportsColor = state.firmwareFeatures.includes('LED_COLOR');
+  const badge = $('#ledFirmwareBadge');
+  const note = $('#ledTesterStatus');
+  const start = $('#startLedSequence');
+  if (badge) {
+    badge.textContent = supportsTest && supportsColor ? `FW ${state.firmwareVersion} • LEDS INDIVIDUAIS` : 'FIRMWARE LEGADO';
+    badge.classList.toggle('is-ready', supportsTest && supportsColor);
+  }
+  if (start) start.disabled = !state.connected || !supportsTest;
+  $$('#ledMapList [data-test-led], #ledTesterList [data-test-led]').forEach((button) => { button.disabled = !state.connected || !supportsTest; });
+  if (note && !supportsTest) note.textContent = state.connected ? 'Controlador conectado, mas sem o recurso LED_TEST. Grave o firmware 0.5.0 para piscar cada pixel individualmente.' : 'Conecte o ESP32 e use o firmware Voyage Ambient 0.5.0 para testar cada pixel individualmente.';
+  const stop = $('#stopLedTest');
+  if (stop) stop.disabled = !ledTestSequenceAbort;
+}
+
+async function testSingleLed(index) {
+  if (!state.connected) { toast('Conecte o ESP32 antes de testar um LED.'); return; }
+  if (!state.firmwareFeatures.includes('LED_TEST')) { toast('O firmware atual não reconhece LED_TEST. Atualize para o firmware privado 0.5.0.'); return; }
+  selectedLedIndex = index;
+  renderLedMapping();
+  await sendCommand(makeLedTestCommand(index));
+  if ($('#ledTesterStatus')) $('#ledTesterStatus').textContent = `Piscando LED ${index}: ${state.ledMap[index - 1]?.name || 'sem nome'}.`;
+}
+
+const wait = (ms) => new Promise((resolve) => window.setTimeout(resolve, ms));
+
+async function startLedTestSequence() {
+  if (!state.connected) { toast('Conecte o ESP32 antes de iniciar a sequência.'); return; }
+  if (!state.firmwareFeatures.includes('LED_TEST')) { toast('A sequência individual requer o firmware 0.5.0.'); return; }
+  ledTestSequenceAbort = true;
+  updateLedFirmwareStatus();
+  for (let index = 1; index <= state.ledMap.length; index++) {
+    if (!ledTestSequenceAbort) break;
+    selectedLedIndex = index;
+    renderLedMapping();
+    if ($('#ledTesterStatus')) $('#ledTesterStatus').textContent = `Identificando LED ${index} de ${state.ledMap.length}: ${state.ledMap[index - 1].name}.`;
+    await sendCommand(makeLedTestCommand(index));
+    await wait(2050);
+  }
+  if (ledTestSequenceAbort) toast('Sequência de identificação concluída. Edite os nomes conforme os pontos que piscaram.');
+  ledTestSequenceAbort = false;
+  updateLedFirmwareStatus();
+}
+
+async function stopLedTestSequence() {
+  ledTestSequenceAbort = false;
+  await sendCommand('LED_TEST=0');
+  updateLedFirmwareStatus();
+  if ($('#ledTesterStatus')) $('#ledTesterStatus').textContent = 'Teste interrompido.';
 }
 
 function renderRelayEditor() {
@@ -708,7 +980,7 @@ function renderPalette() {
 
 function renderMoodCards() {
   $('#moodCards').innerHTML = MOODS.map((mood) => `
-    <button class="mood-card mood-card-premium" data-mood="${mood.id}" style="--mood:${mood.color}"><span class="mood-card-glow"></span><span class="eyebrow">VOYAGE AMBIENT SCENE</span><b>${mood.name}</b><small>${mood.subtitle}</small><em>APLICAR AMBIENTE ↗</em></button>
+    <button class="mood-card mood-card-premium mood-scene-${mood.id}" data-mood="${mood.id}" style="--mood:${mood.color}"><span class="mood-card-glow"></span><span class="eyebrow">VOYAGE AMBIENT SCENE</span><b>${mood.name}</b><small>${mood.subtitle}</small><em>APLICAR AMBIENTE ↗</em></button>
   `).join('');
   $('#moodCards').querySelectorAll('[data-mood]').forEach((button) => button.addEventListener('click', () => applyMood(button.dataset.mood)));
 }
@@ -723,7 +995,7 @@ $('#speed').addEventListener('input', (event) => { state.speed = Number(event.ta
 $('#colorPicker').addEventListener('input', (event) => setColor(event.target.value));
 $('#frontZoneColor').addEventListener('input', (event) => setZoneColor('front', event.target.value));
 $('#rearZoneColor').addEventListener('input', (event) => setZoneColor('rear', event.target.value));
-$('#syncZoneColors').addEventListener('click', () => { state.zones = { ...state.zones, front: state.color, rear: state.color, linked: true }; saveState(); render(); toast('As duas zonas agora usam a cor principal.'); });
+$('#syncZoneColors').addEventListener('click', () => { state.zones = { ...state.zones, front: state.color, rear: state.color, linked: true }; state.ledMap = normalizeLedMap(state.ledMap).map((item) => ({ ...item, color: state.color })); saveState(); render(); if (state.firmwareFeatures.includes('LED_COLOR')) state.ledMap.forEach((item) => sendCommand(makeLedColorCommand(item.index, item.color))); toast('Cores sincronizadas no mapa dos LEDs.'); });
 $$('.effect-button').forEach((button) => button.addEventListener('click', () => { state.effect = button.dataset.effect; saveState(); render(); sendCommand(`EFFECT=${state.effect}`); }));
 $$('[data-mood]').forEach((button) => button.addEventListener('click', () => applyMood(button.dataset.mood)));
 $('#connectButton').addEventListener('click', connectBluetooth);
@@ -732,6 +1004,16 @@ $('#saveCameraPackage').addEventListener('click', saveCameraPackage);
 $('#launchCamera').addEventListener('click', launchCameraApp);
 
 $('#exportSupport').addEventListener('click', exportSupportPackage);
+$('#saveLedMap').addEventListener('click', () => { saveLedMapConfig(); renderLedLightingMarkers(); toast('Mapeamento dos LEDs salvo.'); });
+$('#lightingLedMarkers').addEventListener('click', (event) => { const marker = event.target.closest('[data-select-led]'); if (marker) { selectedLedIndex = Number(marker.dataset.selectLed); setView('developer'); renderLedMapping(); } });
+$('#startLedSequence').addEventListener('click', startLedTestSequence);
+$('#stopLedTest').addEventListener('click', stopLedTestSequence);
+$('#ledMapList').addEventListener('click', (event) => { const button = event.target.closest('[data-select-led]'); if (button) { selectedLedIndex = Number(button.dataset.selectLed); renderLedMapping(); } });
+$('#ledMapEditor').addEventListener('input', handleLedMapField);
+$('#ledMapEditor').addEventListener('change', handleLedMapField);
+$('#ledMapList').addEventListener('click', async (event) => { const testButton = event.target.closest('[data-test-led]'); if (testButton) await testSingleLed(Number(testButton.dataset.testLed)); });
+$('#ledTesterList').addEventListener('click', async (event) => { const testButton = event.target.closest('[data-test-led]'); if (testButton) await testSingleLed(Number(testButton.dataset.testLed)); });
+
 $('#exportBackup').addEventListener('click', () => exportConfiguration(appConfig));
 $('#importBackupFile').addEventListener('change', importBackupFile);
 $('#assetUpload').addEventListener('change', handleAssetUpload);
@@ -769,6 +1051,7 @@ initVisualEditor({
 
 renderPalette();
 renderMoodCards();
+renderLedLightingMarkers();
 render();
 $('.main-content')?.classList.add('home-active');
 render();

@@ -80,7 +80,7 @@ O botão `Gerar pacote para enviar ao ChatGPT` cria um JSON com configuração, 
 npm test
 ```
 
-Os 26 testes verificam configuração e migração, backup, modelo de relés, rascunhos de automação, preservação do protocolo BLE, layouts do editor, recursos dos pop-ups, importação de imagens, novas abas de iluminação e limites dos efeitos suportados. O workflow do GitHub executa os testes antes da compilação.
+Os 36 testes verificam configuração e migração, backup, modelo de relés, rascunhos de automação, protocolo BLE, layouts do editor, pop-ups, importação de imagens, cenas, responsividade por orientação, mapa de LEDs, comandos BLE compactos e detecção do firmware. O workflow do GitHub executa os testes antes da compilação.
 
 ## Proteção do firmware
 
@@ -140,3 +140,12 @@ A interface Land Rover-inspired agora utiliza composição fotográfica em vez d
 **Limites de hardware mantidos:** os cinco LEDs instalados continuam em uma única cadeia no GPIO 12 e recebem uma cor global. A tela permite guardar cores diferentes para frente e traseira, mas o ESP32 só as aplicará separadamente depois de uma atualização de firmware e de uma divisão física das zonas. Nenhum firmware foi alterado nesta atualização.
 
 A aba Aplicativos, o editor e o protocolo BLE não foram modificados nesta etapa. O identificador do projeto continua em `0.4.0`.
+
+## Atualização de responsividade e mapeamento LED — 0.4.0
+
+- O layout detecta a orientação do dispositivo: em retrato usa navegação inferior e painéis empilhados; em paisagem mantém a navegação lateral e a composição horizontal da multimídia.
+- As oito cenas Land Rover-inspired utilizam imagens individuais otimizadas em `src/themes/land-rover/scenes/`.
+- O Modo Desenvolvedor tem mapeamento dos cinco pixels WS2812B: nome, área (dianteira/traseira/porta-malas), tipo (fita/ponto/área), cor, posição X/Y, comprimento, espessura e opacidade. Os pontos podem ser arrastados sobre a imagem do habitáculo.
+- O mapa e as cores individuais são guardados na configuração local e exportados no backup do desenvolvedor.
+- O firmware atual legado continua compatível. O testador físico individual e as cores independentes exigem o firmware privado 0.5.0 (`INFO`, `LED_TEST`, `LC`). O código-fonte `.ino` não deve ser enviado ao GitHub público.
+- A versão comercial do app permanece 0.4.0; o formato interno das configurações foi migrado para schema 3 sem descartar as preferências anteriores.

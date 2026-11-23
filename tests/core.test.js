@@ -18,7 +18,7 @@ beforeEach(() => memory.clear());
 
 test('cria configuração base com versão de esquema e módulos conhecidos', () => {
   const config = loadConfig();
-  assert.equal(config.schemaVersion, 2);
+  assert.equal(config.schemaVersion, 3);
   assert.equal(config.theme.activeId, 'land-rover');
   assert.equal(config.modules.length, 3);
   assert.equal(config.modules.find((item) => item.id === 'ambient-led-chain').ledCount, 5);
@@ -58,7 +58,10 @@ test('automação é criada como rascunho local, não ativa', () => {
 test('UUIDs e comandos BLE legados permanecem compatíveis', () => {
   assert.equal(BLE_SERVICE_UUID, '7b9e0001-7a3d-4f5b-9c2a-6e1d0a5b0001');
   assert.equal(BLE_CHARACTERISTIC_UUID, '7b9e0002-7a3d-4f5b-9c2a-6e1d0a5b0001');
-  assert.deepEqual(BLE_COMMANDS, ['POWER', 'COLOR', 'BRIGHTNESS', 'EFFECT', 'SPEED', 'PING']);
+  assert.deepEqual(BLE_COMMANDS.slice(0, 6), ['POWER', 'COLOR', 'BRIGHTNESS', 'EFFECT', 'SPEED', 'PING']);
+  assert.ok(BLE_COMMANDS.includes('INFO'));
+  assert.ok(BLE_COMMANDS.includes('LED_TEST'));
+  assert.ok(BLE_COMMANDS.includes('LC'));
 });
 
 import { createDefaultEditorLayout, sortEditorItems, normalizePopupStyleExport, normalizeWidgetStyleExport, normalizeWidgetLayoutItem, collectThemeAssetIds, remapThemeAssetIds } from '../src/editor/editor-ui.js';
@@ -217,7 +220,7 @@ test('iluminação contém cenas Voyage, efeitos BLE suportados e configuração
   assert.match(main, /id="frontZoneColor"/);
   assert.match(main, /id="rearZoneColor"/);
   assert.match(main, /id="syncZoneColors"/);
-  assert.match(main, /firmware atual ainda envia uma cor única/);
+  assert.match(main, /O firmware atual ainda envia uma cor única|firmware 0\.5\.0/);
 });
 
 test('preferências de cor dianteira e traseira permanecem salvas na configuração', () => {
@@ -251,4 +254,90 @@ test('controles de efeito ativos correspondem somente ao firmware BLE atual', ()
   assert.deepEqual(activeEffects, ['SOLID', 'BREATHE', 'RAINBOW']);
   assert.match(main, /Próximos efeitos/);
   assert.match(main, /O firmware atual ainda envia uma cor única para os cinco LEDs/);
+});
+
+
+import { createDefaultLedMap, normalizeLedEntry, normalizeLedMap, makeLedTestCommand, makeLedColorCommand, parseFirmwareInfo } from '../src/core/led-mapping.js';
+
+test('mapa inicial identifica cinco pixels físicos com nome, zona e posição editável', () => {
+  const map = createDefaultLedMap();
+  assert.equal(map.length, 5);
+  assert.equal(map[0].name, 'Motorista');
+  assert.equal(map[1].name, 'Passageiro');
+  assert.equal(map[4].zone, 'trunk');
+  assert.ok(map.every((item) => item.x >= 3 && item.x <= 97 && item.y >= 4 && item.y <= 96));
+});
+
+test('normalização de mapeamento limita coordenadas e tipos desconhecidos', () => {
+  const map = normalizeLedMap([{ name: 'LED extremo', x: 999, y: -10, type: 'unknown', color: 'red' }]);
+  assert.equal(map[0].x, 97);
+  assert.equal(map[0].y, 4);
+  assert.equal(map[0].type, 'strip');
+  assert.match(map[0].color, /^#[0-9a-f]{6}$/i);
+  assert.equal(map.length, 5);
+});
+
+test('comandos de teste e cor individual validam índice e cor RGB', () => {
+  assert.equal(makeLedTestCommand(3), 'LED_TEST=3');
+  assert.equal(makeLedColorCommand(2, '#ff0080'), 'LC=2,255,0,128');
+  assert.ok(makeLedColorCommand(2, '#ff0080').length <= 20, 'o comando cabe no payload BLE padrão');
+  assert.throws(() => makeLedTestCommand(6), RangeError);
+  assert.throws(() => makeLedColorCommand(1, 'vermelho'), TypeError);
+});
+
+test('configuração mantém mapa dos LEDs na gravação e no backup', () => {
+  const config = loadConfig();
+  const changed = config.lighting.ledMap.map((item, index) => index === 0 ? { ...item, name: 'Fita do motorista', x: 32 } : item);
+  const saved = saveConfig({ ...config, lighting: { ...config.lighting, ledMap: changed } });
+  assert.equal(saved.ok, true);
+  assert.equal(saved.config.lighting.ledMap[0].name, 'Fita do motorista');
+  const backup = validateBackup({ config: saved.config });
+  assert.equal(backup.ok, true);
+  assert.equal(backup.config.lighting.ledMap[0].x, 32);
+});
+
+test('layout responsivo define navegação inferior em retrato e lateral em paisagem', () => {
+  const css = readFileSync(new URL('../src/themes/land-rover/responsive.css', import.meta.url), 'utf8');
+  assert.match(css, /@media \(orientation: portrait\)/);
+  assert.match(css, /grid-template-rows:56px minmax\(0,1fr\) 62px 22px/);
+  assert.match(css, /@media \(orientation: landscape\) and \(max-width:760px\)/);
+});
+
+test('cada cena de iluminação possui fotografia própria', async () => {
+  const { existsSync } = await import('node:fs');
+  for (const name of ['flora','sport','sport-pulse','moonlight','ocean','aurora','sunset','relax']) {
+    assert.ok(existsSync(new URL(`../src/themes/land-rover/scenes/${name}.webp`, import.meta.url)));
+  }
+});
+
+
+test('manifesto público do firmware 0.5.0 descreve UUIDs, teste e cor por pixel', () => {
+  const manifest = readFileSync(new URL('../firmware/esp32/FIRMWARE-0.5.0-MANIFEST.md', import.meta.url), 'utf8');
+  assert.match(manifest, /7b9e0001-7a3d-4f5b-9c2a-6e1d0a5b0001/);
+  assert.match(manifest, /7b9e0002-7a3d-4f5b-9c2a-6e1d0a5b0001/);
+  assert.match(manifest, /LED_TEST=1/);
+  assert.match(manifest, /LC=índice,r,g,b/);
+  assert.match(manifest, /INFO=0\.5\.0,5,LT,LC/);
+  assert.match(manifest, /Quantidade de pixels endereçáveis no hardware inicial: 5/);
+});
+
+test('as imagens de cabine usadas em marcação são importadas pelo pipeline Vite', () => {
+  const main = readFileSync(new URL('../src/main.js', import.meta.url), 'utf8');
+  assert.match(main, /import cabinImageUrl from '\.\/themes\/land-rover\/land-rover-cabin\.webp'/);
+  assert.match(main, /src="\$\{cabinImageUrl\}"/);
+});
+
+test('firmware 0.5.0 anuncia recursos BLE em pacote curto e comando LC cabe no MTU padrão', () => {
+  const manifest = readFileSync(new URL('../firmware/esp32/FIRMWARE-0.5.0-MANIFEST.md', import.meta.url), 'utf8');
+  assert.match(manifest, /INFO=0\.5\.0,5,LT,LC/);
+  assert.ok(makeLedColorCommand(5, '#ffffff').length <= 20);
+});
+
+
+test('detecção do firmware reconhece recursos curtos do pacote BLE 0.5.0', () => {
+  const info = parseFirmwareInfo('INFO=0.5.0,5,LT,LC');
+  assert.equal(info.version, '0.5.0');
+  assert.equal(info.ledCount, 5);
+  assert.deepEqual(info.features, ['LED_TEST', 'LED_COLOR']);
+  assert.equal(parseFirmwareInfo('CONNECTED'), null);
 });
