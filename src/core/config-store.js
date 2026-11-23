@@ -24,6 +24,7 @@ export function createDefaultConfig() {
       effect: 'SOLID',
       speed: 45,
       profile: 'MOONLIGHT',
+      zones: { front: '#91B4D8', rear: '#91B4D8', linked: true },
     },
     camera: { frontPackage: '', rearPackage: '', showFrontIn3d: false, showRearIn3d: false },
     modules: [

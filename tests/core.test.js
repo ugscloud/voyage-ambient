@@ -1,6 +1,6 @@
 import test, { beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { readFileSync, existsSync } from 'node:fs';
 import { CONFIG_KEY, LEGACY_KEY, loadConfig, saveConfig, validateBackup } from '../src/core/config-store.js';
 import { createRelayModuleTemplate, normalizeOutput } from '../src/core/module-registry.js';
 import { createAutomationDraft } from '../src/core/automation-store.js';
@@ -131,8 +131,9 @@ test('tela inicial não mantém a chamada antiga de sistema multimídia e possui
   const main = await readFile(new URL('../src/main.js', import.meta.url), 'utf8');
   assert.ok(!main.includes('SISTEMA MULTIMÍDIA • VOYAGE'));
   assert.ok(!main.includes('Uma experiência a bordo, do seu jeito.'));
-  assert.ok(main.includes("greeting.textContent = 'Bem-vindo.'"));
-  assert.ok(main.includes("current.textContent = 'Boa viagem.'"));
+  assert.ok(main.includes('id="homeGreetingTitle" class="home-greeting"'));
+  assert.ok(main.includes(`greeting.classList.add('is-visible')`));
+  assert.ok(main.includes(`current.classList.remove('is-visible')`));
   assert.ok(main.includes('}, 3000);'));
 });
 
@@ -140,7 +141,7 @@ test('tela inicial não mantém a chamada antiga de sistema multimídia e possui
 test('tela inicial possui alvo real para aplicar widgets salvos', () => {
   const main = readFileSync(new URL('../src/main.js', import.meta.url), 'utf8');
   const editor = readFileSync(new URL('../src/editor/editor-ui.js', import.meta.url), 'utf8');
-  assert.match(main, /class="home-dashboard" id="home-dashboard"/);
+  assert.match(main, /class="home-hero-cards home-dashboard" id="home-dashboard"/);
   assert.match(editor, /querySelector\('#home-dashboard, \.home-dashboard'\)/);
   assert.match(editor, /home\.innerHTML = items\.map/);
 });
@@ -193,4 +194,36 @@ test('layout inicial oferece atalhos editáveis e migra somente o modelo padrão
   const editor = readFileSync(new URL('../src/editor/editor-ui.js', import.meta.url), 'utf8');
   assert.match(editor, /isUntouchedStarter/);
   assert.match(editor, /home-shortcut-/);
+});
+
+
+test('tema Land Rover possui imagem local de abertura e grade de cartões para o editor', () => {
+  const main = readFileSync(new URL('../src/main.js', import.meta.url), 'utf8');
+  const css = readFileSync(new URL('../src/themes/land-rover/theme.css', import.meta.url), 'utf8');
+  const hero = new URL('../src/themes/land-rover/land-rover-hero.webp', import.meta.url);
+  assert.ok(existsSync(hero));
+  assert.match(css, /land-rover-hero\.webp/);
+  assert.match(main, /class="home-hero-cards home-dashboard" id="home-dashboard"/);
+  assert.match(main, /data-go="lighting"/);
+  assert.match(main, /data-go="camera"/);
+});
+
+test('iluminação contém cenas Voyage, efeitos BLE suportados e configuração separada de zonas', () => {
+  const main = readFileSync(new URL('../src/main.js', import.meta.url), 'utf8');
+  for (const mood of ['flora', 'sport', 'sport-pulse', 'moonlight', 'ocean', 'aurora', 'sunset', 'relax']) assert.ok(main.includes(`id: '${mood}'`));
+  assert.match(main, /data-effect="SOLID"/);
+  assert.match(main, /data-effect="BREATHE"/);
+  assert.match(main, /data-effect="RAINBOW"/);
+  assert.match(main, /id="frontZoneColor"/);
+  assert.match(main, /id="rearZoneColor"/);
+  assert.match(main, /id="syncZoneColors"/);
+  assert.match(main, /firmware atual ainda envia uma cor única/);
+});
+
+test('preferências de cor dianteira e traseira permanecem salvas na configuração', () => {
+  const config = loadConfig();
+  const saved = saveConfig({ ...config, lighting: { ...config.lighting, zones: { front: '#FF0000', rear: '#00AEEF', linked: false } } });
+  assert.equal(saved.ok, true);
+  const reloaded = loadConfig();
+  assert.deepEqual(reloaded.lighting.zones, { front: '#FF0000', rear: '#00AEEF', linked: false });
 });

@@ -80,7 +80,7 @@ O botão `Gerar pacote para enviar ao ChatGPT` cria um JSON com configuração, 
 npm test
 ```
 
-Os testes verificam a configuração base, migração das preferências antigas, backup, modelo de cinco relés, rascunho de automação, preservação dos UUIDs/comandos BLE legados e modelo/ordenação dos layouts do editor. O workflow do GitHub executa os testes antes da compilação.
+Os oito testes verificam a configuração base, migração das preferências antigas, backup, modelo de cinco relés, rascunho de automação, preservação dos UUIDs/comandos BLE legados e modelo/ordenação dos layouts do editor. O workflow do GitHub executa os testes antes da compilação.
 
 ## Proteção do firmware
 
@@ -106,17 +106,14 @@ O modo Desenvolvedor agora possui uma primeira versão funcional do Editor Visua
 - A biblioteca de arquivos usa IndexedDB local ao navegador/dispositivo. Imagens adicionadas no iPhone não aparecem automaticamente no Android ou em outro computador; exportação e sincronização de assets entre dispositivos serão uma etapa separada.
 - Os widgets de hardware são elementos de interface. Adicionar um botão não cria por si só suporte físico no ESP32; cada função nova exige integração do protocolo e firmware.
 - Land Rover continua como tema visual mais desenvolvido. BMW e temas personalizados já podem guardar layout e paleta próprios, mas a identidade visual completa e componentes exclusivos desses temas serão refinados posteriormente.
-- A prévia do editor mostra a composição. **Salvar e aplicar** grava o tema neste navegador e aplica os cartões na tela inicial. A exportação universal gera um JSON com o layout e as imagens para incorporar ao código-fonte ou transportar para outro aparelho.
+- A prévia do editor mostra a composição; para tornar um tema a tela ativa, use **Aplicar tema à central**.
 - O editor usa controles de ordenação por botões (Subir/Descer), pensados para também funcionar bem em telas de toque; arrastar e soltar poderá ser adicionado depois.
 
 
-## Correção de auditoria do editor 0.4.0
+## Atualização visual Land Rover — novembro de 2026
 
-- A tela inicial agora possui o seletor `#home-dashboard` esperado pelo motor do editor. Antes, o editor salvava o layout, mas o alvo de aplicação não existia no HTML; por isso os cartões editados não chegavam à tela inicial.
-- `Salvar e aplicar` seleciona o tema ativo e aplica explicitamente o layout à página inicial e ao menu de aplicativos.
-- As edições são gravadas como rascunho local sem substituir a tela ativa a cada movimento de slider. A aplicação ocorre no comando explícito de salvar/aplicar.
-- Os cartões aceitam altura fixa e altura mínima reais, além de ocupação de 1, 2 ou 3 colunas. O controle `Esticar para baixo` grava a altura fixa e a prévia e a tela principal utilizam o mesmo estilo.
-- Pop-ups aceitam imagem como faixa ou fundo, opacidade, preenchimento (cover/contain/fill) e posição (centro/topo/base/esquerda/direita), além das dimensões, transparência, tipografia e animação já disponíveis.
-- A saudação inicial apresenta `Bem-vindo.` por três segundos e depois `Boa viagem.`. A chamada antiga de sistema multimídia e o slogan antigo foram removidos do cabeçalho.
-- O protocolo BLE e o firmware do ESP32 não foram modificados nesta correção.
-- O salvamento local continua restrito ao navegador/dispositivo. Para publicar o tema universalmente, exporte o pacote JSON e incorpore-o ao código-fonte do site. A sincronização direta com GitHub ainda não faz parte do aplicativo.
+Esta atualização mantém o identificador 0.4.0. A Home foi redesenhada com imagem cinematográfica local, quatro cartões de acesso rápido e saudação “Boa viagem” que desaparece após três segundos. A tela de iluminação foi reorganizada em cenas, paleta de cores, brilho, efeitos disponíveis no firmware legado e preferências de cor independente dianteira/traseira.
+
+**Limitação de hardware:** o firmware BLE atual aceita POWER, COLOR global, BRIGHTNESS, EFFECT (SOLID/BREATHE/RAINBOW), SPEED e PING. As cores dianteira/traseira são guardadas como configuração no site, mas só serão aplicadas fisicamente após uma atualização do firmware que implemente o comando por zona. Não enviamos comandos BLE desconhecidos.
+
+O tema de iluminação Flora, Sport, Sport Pulse, Moonlight, Ocean, Aurora, Sunset e Relax são predefinições Voyage Ambient inspiradas em ambientes de cabine; não são apresentadas como nomes oficiais da Land Rover. A documentação oficial da Range Rover divulga iluminação de cabine configurável em 30 cores; os valores RGB deste projeto são próprios.

@@ -28,10 +28,14 @@ const PALETTE = [
 ].map(([name, color]) => ({ name, color }));
 
 const MOODS = [
-  { id: 'flora', name: 'FLORA', subtitle: 'Verde natural', color: '#28C76F', brightness: 78, effect: 'BREATHE' },
-  { id: 'sport', name: 'SPORT', subtitle: 'Vermelho intenso', color: '#FF0000', brightness: 90, effect: 'SOLID' },
-  { id: 'calm', name: 'CALM', subtitle: 'Âmbar acolhedor', color: '#FFB347', brightness: 62, effect: 'BREATHE' },
-  { id: 'moonlight', name: 'MOONLIGHT', subtitle: 'Azul noturno', color: '#91B4D8', brightness: 72, effect: 'SOLID' },
+  { id: 'flora', name: 'FLORA', subtitle: 'Verde natural e sereno', color: '#37D67A', brightness: 72, effect: 'BREATHE' },
+  { id: 'sport', name: 'SPORT', subtitle: 'Vermelho intenso', color: '#FF0000', brightness: 92, effect: 'SOLID' },
+  { id: 'sport-pulse', name: 'SPORT PULSE', subtitle: 'Pulso vermelho suave', color: '#FF1A1A', brightness: 88, effect: 'BREATHE' },
+  { id: 'moonlight', name: 'MOONLIGHT', subtitle: 'Azul frio e sofisticado', color: '#91B4D8', brightness: 68, effect: 'SOLID' },
+  { id: 'ocean', name: 'OCEAN', subtitle: 'Azul oceânico', color: '#00BBD4', brightness: 74, effect: 'BREATHE' },
+  { id: 'aurora', name: 'AURORA', subtitle: 'Ciclo cromático imersivo', color: '#8E5BFF', brightness: 72, effect: 'RAINBOW' },
+  { id: 'sunset', name: 'SUNSET', subtitle: 'Âmbar e pôr do sol', color: '#FF8A42', brightness: 70, effect: 'BREATHE' },
+  { id: 'relax', name: 'RELAX', subtitle: 'Branco quente e conforto', color: '#FFD6A0', brightness: 54, effect: 'BREATHE' },
 ];
 
 function loadSavedState() {
@@ -43,11 +47,17 @@ function loadSavedState() {
     effect: appConfig.lighting.effect || 'SOLID',
     speed: appConfig.lighting.speed ?? 45,
     profile: appConfig.lighting.profile || 'MOONLIGHT',
+    zones: {
+      front: appConfig.lighting.zones?.front || appConfig.lighting.color || '#91B4D8',
+      rear: appConfig.lighting.zones?.rear || appConfig.lighting.color || '#91B4D8',
+      linked: Boolean(appConfig.lighting.zones?.linked ?? true),
+    },
     cameraPackage: appConfig.camera.frontPackage || '',
   };
 }
 
 const state = loadSavedState();
+state.zones ||= { front: state.color, rear: state.color, linked: true };
 let bleClient;
 let toastTimer;
 
@@ -72,29 +82,33 @@ app.innerHTML = `
 
     <main class="main-content">
       <section class="view active" id="view-home">
-        <div class="page-title-row home-intro"><div><div class="eyebrow">VOYAGE AMBIENT</div><h1 id="homeGreetingTitle" aria-live="polite">Bem-vindo.</h1></div></div>
-        <div class="home-dashboard" id="home-dashboard">
-          <button class="dash-tile ambient-tile" data-go="lighting">
-            <div class="tile-top"><div><span class="eyebrow">AMBIENT LIGHTING</span><h2>Iluminação ambiente</h2><p id="homeMood">MOONLIGHT • AZUL NOTURNO</p></div><span class="tile-arrow">↗</span></div>
-            <div class="ambient-car-scene"><div class="car-glow" id="homeGlow"></div><svg viewBox="0 0 520 180" role="img" aria-label="Ilustração estilizada do veículo"><path class="car-window" d="M94 108 L128 54 Q141 34 174 29 L344 29 Q374 30 394 58 L431 109 Z"/><path class="car-body" d="M57 113 Q68 102 99 101 L125 71 Q141 49 175 47 L348 47 Q376 49 397 78 L430 103 Q454 107 463 119 L454 139 L67 139 Z"/><path class="car-roofline" d="M130 100 L162 59 Q172 51 190 51 L333 51 Q362 53 385 100"/><path class="car-light" d="M72 117 H447"/><circle class="car-wheel" cx="142" cy="136" r="19"/><circle class="car-wheel" cx="382" cy="136" r="19"/><path class="car-interior-line" d="M177 108 L190 79 L325 79 L346 108 M258 80 V111"/></svg><span class="car-caption">VOYAGE • CABIN LIGHTING</span></div>
-            <div class="tile-bottom"><span><i class="live-dot"></i> <b id="homePowerText">SISTEMA LIGADO</b></span><span>INTENSIDADE <b id="homeBrightness">80%</b></span><span class="color-indicator" id="homeColorDot"></span></div>
-          </button>
-          <button class="dash-tile camera-tile" data-go="camera">
-            <div class="tile-top"><div><span class="eyebrow">DRIVER ASSIST</span><h2>Câmera frontal</h2><p>Visualização dianteira do veículo</p></div><span class="tile-arrow">↗</span></div>
-            <div class="camera-art"><div class="camera-frame"><div class="camera-lens"></div><span class="camera-crosshair">＋</span><div class="camera-gridline"></div></div><div class="camera-car-front"><span></span><i></i><b></b></div></div>
-            <div class="tile-bottom"><span>APLICATIVO DA MULTIMÍDIA</span><span class="small-pill">ABRIR CÂMERA</span></div>
-          </button>
-          <button class="dash-tile vehicle-tile" data-go="vehicle">
-            <div class="tile-top"><div><span class="eyebrow">VEHICLE INFORMATION</span><h2>Dados do veículo</h2><p>Informações e diagnóstico</p></div><span class="tile-arrow">↗</span></div>
-            <div class="vehicle-data-visual"><div class="gauge"><span>—</span><small>RPM</small></div><div class="gauge"><span>—</span><small>KM/H</small></div><div class="gauge"><span>—</span><small>°C</small></div></div>
-            <div class="tile-bottom"><span>OBD2</span><span class="small-pill muted-pill">EM PREPARAÇÃO</span></div>
-          </button>
-          <div class="shortcut-strip"><div class="shortcut-heading"><span class="eyebrow">ATALHOS</span><span>ACESSO RÁPIDO</span></div>
-            <button data-go="lighting"><span class="shortcut-icon">✧</span><b>Iluminação</b><small>Cor e efeitos</small></button>
-            <button data-go="camera"><span class="shortcut-icon">◉</span><b>Câmera</b><small>Visão frontal</small></button>
-            <button data-go="apps"><span class="shortcut-icon">▦</span><b>Aplicativos</b><small>Todos os recursos</small></button>
-            <button data-go="modes"><span class="shortcut-icon">◇</span><b>Estilos</b><small>Temas visuais</small></button>
+        <div class="home-hero">
+          <div class="home-hero-shade"></div>
+          <div class="home-hero-topline">
+            <div class="home-hero-brand"><span class="home-brand-mark">V</span><span><b>VOYAGE AMBIENT</b><small>LAND ROVER DESIGN THEME</small></span></div>
+            <div class="home-hero-weather"><span>EXPERIÊNCIA DE CONDUÇÃO</span><b id="heroGreetingTime">—</b></div>
           </div>
+          <div class="home-welcome-wrap">
+            <div class="home-welcome-rule"></div>
+            <h1 id="homeGreetingTitle" class="home-greeting" aria-live="polite">Boa viagem</h1>
+          </div>
+          <div class="home-hero-spacer"></div>
+          <div class="home-hero-cards home-dashboard" id="home-dashboard">
+            <button class="home-feature-card home-feature-lighting" data-go="lighting">
+              <span class="feature-card-icon">✧</span><span class="feature-card-copy"><small>AMBIENTE</small><b>Iluminação</b><em id="homeMood">MOONLIGHT • AZUL NOTURNO</em></span><span class="feature-card-arrow">↗</span>
+              <span class="feature-card-status"><i class="live-dot"></i><b id="homePowerText">SISTEMA LIGADO</b><span id="homeBrightness">80%</span><i class="color-indicator" id="homeColorDot"></i></span><span id="homeGlow" class="feature-card-glow"></span>
+            </button>
+            <button class="home-feature-card home-feature-camera" data-go="camera">
+              <span class="feature-card-icon">◉</span><span class="feature-card-copy"><small>DRIVER ASSIST</small><b>Câmera frontal</b><em>VISUALIZAÇÃO DO VEÍCULO</em></span><span class="feature-card-arrow">↗</span>
+            </button>
+            <button class="home-feature-card home-feature-vehicle" data-go="vehicle">
+              <span class="feature-card-icon">⌁</span><span class="feature-card-copy"><small>VEÍCULO</small><b>Dados e status</b><em>INFORMAÇÕES DO SISTEMA</em></span><span class="feature-card-arrow">↗</span>
+            </button>
+            <button class="home-feature-card home-feature-scenes" data-go="profiles">
+              <span class="feature-card-icon">◇</span><span class="feature-card-copy"><small>PERSONALIZAÇÃO</small><b>Temas de ambiente</b><em>FLORA · SPORT · OCEAN</em></span><span class="feature-card-arrow">↗</span>
+            </button>
+          </div>
+          <div class="home-hero-footer"><span>VOYAGE AMBIENT <i>•</i> LAND ROVER DESIGN</span><span class="home-hero-page-dots"><i class="active"></i><i></i><i></i></span><span class="home-hero-live"><i></i> <span id="homeConnectionLabel">CONTROLADOR PRONTO</span></span></div>
         </div>
       </section>
 
@@ -114,42 +128,61 @@ app.innerHTML = `
       </section>
 
       <section class="view" id="view-lighting">
-        <div class="page-title-row"><div><div class="eyebrow">VEHICLE SETTINGS • AMBIENT LIGHTING</div><h1>Iluminação ambiente</h1><p>Personalize a atmosfera dentro do seu Voyage.</p></div><div class="active-scene"><span class="scene-dot" id="sceneDot"></span><span><small>CENA ATUAL</small><b id="sceneName">MOONLIGHT</b></span></div></div>
-        <div class="lighting-layout">
-          <article class="pivi-panel palette-panel">
-            <div class="panel-heading"><div><span class="eyebrow">PERSONALIZAÇÃO</span><h2>Escolha sua cor</h2></div><span class="count-label">30 TONS</span></div>
-            <div class="mood-row">
-              <button class="mood-button" data-mood="flora"><span class="mood-swatch" style="--mood:#28C76F"></span><b>FLORA</b><small>Natural</small></button>
-              <button class="mood-button" data-mood="sport"><span class="mood-swatch" style="--mood:#FF0000"></span><b>SPORT</b><small>Dinâmico</small></button>
-              <button class="mood-button" data-mood="calm"><span class="mood-swatch" style="--mood:#FFB347"></span><b>CALM</b><small>Conforto</small></button>
-              <button class="mood-button" data-mood="moonlight"><span class="mood-swatch" style="--mood:#91B4D8"></span><b>MOONLIGHT</b><small>Noturno</small></button>
+        <div class="lighting-page-heading">
+          <div><span class="eyebrow">CABIN EXPERIENCE</span><h1>Iluminação ambiente</h1><p>Personalize a atmosfera de cada parte do habitáculo.</p></div>
+          <div class="lighting-heading-status"><span class="scene-dot" id="sceneDot"></span><span><small>CENA ATIVA</small><b id="sceneName">MOONLIGHT</b></span><button class="power-control on" id="lightingPower" aria-label="Ligar ou desligar iluminação"><span>⏻</span></button></div>
+        </div>
+        <div class="lighting-studio">
+          <div class="lighting-studio-main">
+            <div class="lighting-cabin-visual">
+              <div class="cabin-visual-glow"></div>
+              <div class="cabin-visual-copy"><span class="eyebrow">VOYAGE AMBIENT</span><b>Crie sua atmosfera.</b><small>Iluminação configurável do habitáculo</small></div>
+              <div class="cabin-visual-car"><div class="cabin-visual-window"></div><div class="cabin-visual-console"></div><div class="cabin-light-line front"></div><div class="cabin-light-line rear"></div><div class="cabin-visual-seat seat-a"></div><div class="cabin-visual-seat seat-b"></div><div class="cabin-visual-seat seat-c"></div><div class="cabin-visual-seat seat-d"></div></div>
+              <div class="cabin-visual-status"><i class="live-dot" id="lightingStatusDot"></i><span id="lightingState">ILUMINAÇÃO ATIVA</span><span>5 LEDS · GPIO 12</span></div>
             </div>
-            <div class="palette-divider"><span>PALETA DE CORES</span><span>TONS INSPIRADOS NA RANGE ROVER</span></div>
-            <div class="color-palette" id="colorPalette"></div>
-            <div class="custom-color-row"><label for="colorPicker">Cor personalizada</label><input id="colorPicker" type="color" value="#91B4D8" aria-label="Selecionar cor personalizada" /></div>
-            <div class="selected-color-row"><span class="selected-color-chip" id="selectedColorChip"></span><span><small>COR SELECIONADA</small><b id="selectedColorName">Moonlight</b></span><strong id="selectedHex">#91B4D8</strong></div>
-          </article>
-          <div class="lighting-side-column">
-            <article class="pivi-panel lighting-control-panel">
-              <div class="panel-heading"><div><span class="eyebrow">CONTROLE GERAL</span><h2>Iluminação do habitáculo</h2></div><button class="power-control on" id="lightingPower" aria-label="Ligar ou desligar iluminação"><span>⏻</span></button></div>
-              <div class="status-line"><span class="live-dot" id="lightingStatusDot"></span><span id="lightingState">ILUMINAÇÃO ATIVA</span><span class="status-right">5 LEDs • GPIO 12</span></div>
-              <div class="control-block"><div class="range-heading"><label for="brightness">Intensidade</label><strong id="brightnessValue">80%</strong></div><input class="range" type="range" id="brightness" min="0" max="100" value="80"/><div class="range-ends"><span>Suave</span><span>Máxima</span></div></div>
+            <div class="lighting-presets-panel">
+              <div class="lighting-section-heading"><div><span class="eyebrow">AMBIENTES PREDEFINIDOS</span><h2>Escolha seu ambiente</h2></div><span class="count-label">CENAS VOYAGE</span></div>
+              <div class="mood-row mood-row-premium">
+                <button class="mood-button mood-flora" data-mood="flora" style="--mood:#37D67A"><span class="mood-art">❧</span><b>FLORA</b><small>Natural</small></button>
+                <button class="mood-button mood-sport" data-mood="sport" style="--mood:#FF0000"><span class="mood-art">⌁</span><b>SPORT</b><small>Intenso</small></button>
+                <button class="mood-button mood-sport-pulse" data-mood="sport-pulse" style="--mood:#FF1A1A"><span class="mood-art">∿</span><b>SPORT PULSE</b><small>Dinâmico</small></button>
+                <button class="mood-button mood-moonlight" data-mood="moonlight" style="--mood:#91B4D8"><span class="mood-art">☾</span><b>MOONLIGHT</b><small>Noturno</small></button>
+                <button class="mood-button mood-ocean" data-mood="ocean" style="--mood:#00BBD4"><span class="mood-art">≈</span><b>OCEAN</b><small>Sereno</small></button>
+                <button class="mood-button mood-aurora" data-mood="aurora" style="--mood:#8E5BFF"><span class="mood-art">✧</span><b>AURORA</b><small>Imersivo</small></button>
+                <button class="mood-button mood-sunset" data-mood="sunset" style="--mood:#FF8A42"><span class="mood-art">◒</span><b>SUNSET</b><small>Acolhedor</small></button>
+                <button class="mood-button mood-relax" data-mood="relax" style="--mood:#FFD6A0"><span class="mood-art">◇</span><b>RELAX</b><small>Conforto</small></button>
+              </div>
+            </div>
+          </div>
+          <aside class="lighting-studio-side">
+            <article class="lighting-glass-panel lighting-color-panel">
+              <div class="lighting-section-heading"><div><span class="eyebrow">CONTROLE DE COR</span><h2>Cor personalizada</h2></div><span class="count-label">30 CORES</span></div>
+              <div class="lighting-active-color"><span class="selected-color-chip" id="selectedColorChip"></span><span><small>COR SELECIONADA</small><b id="selectedColorName">Moonlight</b></span><strong id="selectedHex">#91B4D8</strong></div>
+              <div class="color-palette color-palette-premium" id="colorPalette"></div>
+              <div class="custom-color-row"><label for="colorPicker">Escolher qualquer cor</label><input id="colorPicker" type="color" value="#91B4D8" aria-label="Selecionar cor personalizada" /></div>
+            </article>
+            <article class="lighting-glass-panel lighting-level-panel">
+              <div class="lighting-section-heading"><div><span class="eyebrow">INTENSIDADE</span><h2>Brilho e movimento</h2></div></div>
+              <div class="control-block"><div class="range-heading"><label for="brightness">Brilho geral</label><strong id="brightnessValue">80%</strong></div><input class="range premium-range" type="range" id="brightness" min="0" max="100" value="80"/><div class="range-ends"><span>Suave</span><span>Máximo</span></div></div>
               <div class="control-separator"></div>
-              <div class="panel-heading effect-heading"><div><span class="eyebrow">ANIMAÇÃO</span><h2>Efeito de luz</h2></div></div>
-              <div class="effect-grid">
-                <button class="effect-button active" data-effect="SOLID"><span>●</span><b>Fixa</b><small>Cor constante</small></button>
-                <button class="effect-button" data-effect="BREATHE"><span>≈</span><b>Respiração</b><small>Suave e gradual</small></button>
+              <div class="lighting-section-heading compact-heading"><div><span class="eyebrow">EFEITO ATIVO</span><h2>Movimento da luz</h2></div></div>
+              <div class="effect-grid effect-grid-premium">
+                <button class="effect-button active" data-effect="SOLID"><span>—</span><b>Estático</b><small>Cor contínua</small></button>
+                <button class="effect-button" data-effect="BREATHE"><span>∿</span><b>Respiração</b><small>Transição suave</small></button>
                 <button class="effect-button" data-effect="RAINBOW"><span>◌</span><b>Espectro</b><small>Ciclo de cores</small></button>
               </div>
-              <div class="control-block speed-block"><div class="range-heading"><label for="speed">Velocidade do efeito</label><strong id="speedValue">45%</strong></div><input class="range" type="range" id="speed" min="1" max="100" value="45"/><div class="range-ends"><span>Lenta</span><span>Rápida</span></div></div>
+              <div class="control-block speed-block"><div class="range-heading"><label for="speed">Velocidade do efeito</label><strong id="speedValue">45%</strong></div><input class="range premium-range" type="range" id="speed" min="1" max="100" value="45"/><div class="range-ends"><span>Gradual</span><span>Rápido</span></div></div>
             </article>
-            <article class="pivi-panel zones-panel">
-              <div class="panel-heading"><div><span class="eyebrow">DISTRIBUIÇÃO</span><h2>Zonas do habitáculo</h2></div><span class="count-label">SINCRONIZADAS</span></div>
-              <div class="cabin-zones"><div class="zone front-left"><span></span><small>MOTORISTA</small></div><div class="zone front-right"><span></span><small>PASSAGEIRO</small></div><div class="zone rear-left"><span></span><small>TRASEIRA E.</small></div><div class="zone rear-right"><span></span><small>TRASEIRA D.</small></div><div class="cabin-center"></div></div>
-              <p class="small-note">No circuito atual, os cinco LEDs recebem a mesma cor e os mesmos efeitos. O controle independente de cada zona será liberado quando ampliarmos a instalação.</p>
-            </article>
-          </div>
+          </aside>
         </div>
+        <section class="lighting-zones-workspace">
+          <div class="lighting-section-heading"><div><span class="eyebrow">DISTRIBUIÇÃO DO HABITÁCULO</span><h2>Zonas de iluminação</h2><p>Configure uma cor para a dianteira e outra para a traseira.</p></div><div class="zone-header-actions"><span class="zone-firmware-badge">CONFIGURAÇÃO DE ZONAS</span><button class="zone-sync-button" id="syncZoneColors" type="button">UNIFICAR CORES</button></div></div>
+          <div class="zone-color-grid">
+            <article class="zone-color-card zone-front-card"><div class="zone-card-art"><span class="zone-light-track"></span><span class="zone-seat seat-one"></span><span class="zone-seat seat-two"></span></div><div class="zone-card-heading"><span class="zone-number">01</span><div><small>ÁREA DIANTEIRA</small><b>Motorista e passageiro</b></div><span class="zone-current-swatch" id="frontZoneSwatch"></span></div><div class="zone-card-color"><label for="frontZoneColor">Cor da dianteira</label><input id="frontZoneColor" type="color" value="#91B4D8"/><strong id="frontZoneHex">#91B4D8</strong></div></article>
+            <article class="zone-color-card zone-rear-card"><div class="zone-card-art"><span class="zone-light-track"></span><span class="zone-seat seat-one"></span><span class="zone-seat seat-two"></span></div><div class="zone-card-heading"><span class="zone-number">02</span><div><small>ÁREA TRASEIRA</small><b>Banco traseiro</b></div><span class="zone-current-swatch" id="rearZoneSwatch"></span></div><div class="zone-card-color"><label for="rearZoneColor">Cor da traseira</label><input id="rearZoneColor" type="color" value="#91B4D8"/><strong id="rearZoneHex">#91B4D8</strong></div></article>
+          </div>
+          <p class="zone-firmware-note" id="zoneFirmwareNote">As cores dianteira e traseira ficam salvas como configuração. O firmware atual ainda envia uma cor única para os cinco LEDs; a aplicação física independente será ativada na próxima atualização do ESP32.</p>
+        </section>
       </section>
 
       <section class="view" id="view-camera">
@@ -294,7 +327,7 @@ function saveState() {
   const result = updateConfig(appConfig, {
     lighting: {
       powered: state.powered, color: state.color, brightness: state.brightness,
-      effect: state.effect, speed: state.speed, profile: state.profile,
+      effect: state.effect, speed: state.speed, profile: state.profile, zones: { ...state.zones },
     },
     camera: { frontPackage: state.cameraPackage },
   });
@@ -310,7 +343,18 @@ function render() {
   const color = state.color;
   document.documentElement.style.setProperty('--ambient', color);
   document.documentElement.style.setProperty('--ambient-soft', `${color}44`);
+  document.documentElement.style.setProperty('--front-zone', state.zones.front);
+  document.documentElement.style.setProperty('--rear-zone', state.zones.rear);
   if ($('#homeMood')) $('#homeMood').textContent = `${state.profile} • ${colorName(color).toUpperCase()}`;
+  if ($('#heroGreetingTime')) $('#heroGreetingTime').textContent = new Intl.DateTimeFormat('pt-BR', { hour: '2-digit', minute: '2-digit' }).format(new Date());
+  if ($('#homeConnectionLabel')) $('#homeConnectionLabel').textContent = state.connected ? 'CONTROLADOR CONECTADO' : 'CONTROLADOR PRONTO';
+  if ($('#frontZoneColor')) $('#frontZoneColor').value = state.zones.front;
+  if ($('#rearZoneColor')) $('#rearZoneColor').value = state.zones.rear;
+  if ($('#frontZoneHex')) $('#frontZoneHex').textContent = state.zones.front.toUpperCase();
+  if ($('#rearZoneHex')) $('#rearZoneHex').textContent = state.zones.rear.toUpperCase();
+  if ($('#frontZoneSwatch')) $('#frontZoneSwatch').style.background = state.zones.front;
+  if ($('#rearZoneSwatch')) $('#rearZoneSwatch').style.background = state.zones.rear;
+  if ($('#zoneFirmwareNote')) $('#zoneFirmwareNote').dataset.linked = state.zones.linked ? 'true' : 'false';
   if ($('#homeBrightness')) $('#homeBrightness').textContent = `${state.brightness}%`;
   if ($('#homePowerText')) $('#homePowerText').textContent = state.powered ? 'SISTEMA LIGADO' : 'SISTEMA DESLIGADO';
   if ($('#homeColorDot')) $('#homeColorDot').style.background = color;
@@ -343,6 +387,7 @@ function render() {
 
 function setView(view) {
   $$('.view').forEach((section) => section.classList.toggle('active', section.id === `view-${view}`));
+  $('.main-content')?.classList.toggle('home-active', view === 'home');
   $$('.rail-button').forEach((button) => button.classList.toggle('active', button.dataset.view === view));
   if (view === 'camera') $('#cameraPackage').value = state.cameraPackage;
   if (view === 'developer') refreshDeveloperView();
@@ -374,6 +419,20 @@ function setColor(color, name = colorName(color)) {
   sendCommand(`COLOR=${r},${g},${b}`);
 }
 
+function setZoneColor(zone, color) {
+  if (!['front', 'rear'].includes(zone)) return;
+  state.zones = { ...state.zones, [zone]: color.toLowerCase(), linked: false };
+  saveState();
+  if (zone === 'front') {
+    if ($('#frontZoneHex')) $('#frontZoneHex').textContent = color.toUpperCase();
+    if ($('#frontZoneSwatch')) $('#frontZoneSwatch').style.background = color;
+  } else {
+    if ($('#rearZoneHex')) $('#rearZoneHex').textContent = color.toUpperCase();
+    if ($('#rearZoneSwatch')) $('#rearZoneSwatch').style.background = color;
+  }
+  toast('Cor da zona salva. Para aplicar dianteira e traseira separadamente, será necessária a atualização do firmware do ESP32.');
+}
+
 function setPower(powered) {
   state.powered = powered;
   saveState(); render();
@@ -387,6 +446,7 @@ function applyMood(moodId) {
   state.profile = mood.name;
   state.brightness = mood.brightness;
   state.effect = mood.effect;
+  state.zones = { ...state.zones, front: mood.color, rear: mood.color };
   saveState(); render(); sendCurrentState();
   toast(`Cena ${mood.name} aplicada.`);
 }
@@ -590,8 +650,9 @@ function renderPalette() {
 
 function renderMoodCards() {
   $('#moodCards').innerHTML = MOODS.map((mood) => `
-    <button class="mood-card" data-mood="${mood.id}" style="--mood:${mood.color}"><span class="mood-card-glow"></span><span class="eyebrow">AMBIENT PRESET</span><b>${mood.name}</b><small>${mood.subtitle}</small><em>APLICAR CENA ↗</em></button>
+    <button class="mood-card mood-card-premium" data-mood="${mood.id}" style="--mood:${mood.color}"><span class="mood-card-glow"></span><span class="eyebrow">VOYAGE AMBIENT SCENE</span><b>${mood.name}</b><small>${mood.subtitle}</small><em>APLICAR AMBIENTE ↗</em></button>
   `).join('');
+  $('#moodCards').querySelectorAll('[data-mood]').forEach((button) => button.addEventListener('click', () => applyMood(button.dataset.mood)));
 }
 
 $$('[data-view]').forEach((button) => button.addEventListener('click', () => setView(button.dataset.view)));
@@ -600,6 +661,9 @@ $('#lightingPower').addEventListener('click', () => setPower(!state.powered));
 $('#brightness').addEventListener('input', (event) => { state.brightness = Number(event.target.value); saveState(); render(); sendCommand(`BRIGHTNESS=${state.brightness}`); });
 $('#speed').addEventListener('input', (event) => { state.speed = Number(event.target.value); saveState(); render(); sendCommand(`SPEED=${state.speed}`); });
 $('#colorPicker').addEventListener('input', (event) => setColor(event.target.value));
+$('#frontZoneColor').addEventListener('input', (event) => setZoneColor('front', event.target.value));
+$('#rearZoneColor').addEventListener('input', (event) => setZoneColor('rear', event.target.value));
+$('#syncZoneColors').addEventListener('click', () => { state.zones = { ...state.zones, front: state.color, rear: state.color, linked: true }; saveState(); render(); toast('As duas zonas agora usam a cor principal.'); });
 $$('.effect-button').forEach((button) => button.addEventListener('click', () => { state.effect = button.dataset.effect; saveState(); render(); sendCommand(`EFFECT=${state.effect}`); }));
 $$('[data-mood]').forEach((button) => button.addEventListener('click', () => applyMood(button.dataset.mood)));
 $('#connectButton').addEventListener('click', connectBluetooth);
@@ -618,16 +682,20 @@ function updateClock() {
   const now = new Date();
   $('#clock').textContent = new Intl.DateTimeFormat('pt-BR', { hour: '2-digit', minute: '2-digit' }).format(now);
   $('#dateLabel').textContent = new Intl.DateTimeFormat('pt-BR', { weekday: 'long', day: '2-digit', month: 'short' }).format(now).replace('.', '').toUpperCase();
+  if ($('#heroGreetingTime')) $('#heroGreetingTime').textContent = new Intl.DateTimeFormat('pt-BR', { hour: '2-digit', minute: '2-digit' }).format(now);
 }
 
-// Tela de entrada: saudação breve e, depois, mensagem permanente de viagem.
+// A saudação aparece por três segundos e some para liberar a imagem do veículo.
 function startWelcomeSequence() {
   const greeting = $('#homeGreetingTitle');
   if (!greeting) return;
-  greeting.textContent = 'Bem-vindo.';
+  greeting.classList.add('is-visible');
   window.setTimeout(() => {
     const current = $('#homeGreetingTitle');
-    if (current) current.textContent = 'Boa viagem.';
+    if (current) {
+      current.classList.remove('is-visible');
+      current.setAttribute('aria-hidden', 'true');
+    }
   }, 3000);
 }
 
@@ -641,6 +709,8 @@ initVisualEditor({
 
 renderPalette();
 renderMoodCards();
+render();
+$('.main-content')?.classList.add('home-active');
 render();
 updateClock();
 startWelcomeSequence();
