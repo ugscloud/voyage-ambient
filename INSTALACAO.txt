@@ -1,0 +1,11 @@
+VOYAGE AMBIENT 0.4.0 — ATUALIZAÇÃO RESPONSIVA + LEDS
+
+1) Extraia este pacote no computador.
+2) No GitHub, entre no repositório voyage-ambient.
+3) Envie os arquivos e pastas mantendo exatamente os caminhos do pacote, para a raiz do repositório.
+4) Substitua os arquivos existentes quando o GitHub perguntar.
+5) Não envie o ZIP fechado como um único arquivo.
+6) Não há alteração de package.json e a versão do app permanece 0.4.0.
+7) Aguarde Actions concluir testes e build antes de testar o Pages.
+
+O arquivo .ino privado não está neste pacote. O site continuará falando com o firmware antigo; o testador físico e o controle de cor por pixel serão habilitados apenas depois de gravar o pacote privado de firmware 0.5.0 no ESP32.

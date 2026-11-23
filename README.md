@@ -80,7 +80,7 @@ O botão `Gerar pacote para enviar ao ChatGPT` cria um JSON com configuração, 
 npm test
 ```
 
-Os 36 testes verificam configuração e migração, backup, modelo de relés, rascunhos de automação, protocolo BLE, layouts do editor, pop-ups, importação de imagens, cenas, responsividade por orientação, mapa de LEDs, comandos BLE compactos e detecção do firmware. O workflow do GitHub executa os testes antes da compilação.
+Os 26 testes verificam configuração e migração, backup, modelo de relés, rascunhos de automação, preservação do protocolo BLE, layouts do editor, recursos dos pop-ups, importação de imagens, novas abas de iluminação e limites dos efeitos suportados. O workflow do GitHub executa os testes antes da compilação.
 
 ## Proteção do firmware
 
