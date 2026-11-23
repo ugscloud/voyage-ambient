@@ -67,7 +67,7 @@ export function parseFirmwareInfo(message) {
     return {
       version,
       ledCount: clamp(count, 0, 64, 0),
-      features: codes.flatMap((code) => code === 'LT' ? ['LED_TEST'] : code === 'LC' ? ['LED_COLOR'] : []),
+      features: codes.flatMap((code) => code === 'LT' ? ['LED_TEST'] : code === 'LC' ? ['LED_COLOR'] : code === 'FX' ? ['EFFECTS'] : code === 'CFG' ? ['PERSISTENCE'] : []),
     };
   }
   if (message.startsWith('INFO;')) {
@@ -75,7 +75,7 @@ export function parseFirmwareInfo(message) {
     return {
       version: fields.FW || 'Desconhecido',
       ledCount: clamp(fields.LED_COUNT, 0, 64, 0),
-      features: (fields.CAPS || '').split(',').filter(Boolean),
+      features: (fields.CAPS || '').split(',').flatMap((code) => code === 'LT' ? ['LED_TEST'] : code === 'LC' ? ['LED_COLOR'] : code === 'FX' ? ['EFFECTS'] : code === 'CFG' ? ['PERSISTENCE'] : []),
     };
   }
   return null;

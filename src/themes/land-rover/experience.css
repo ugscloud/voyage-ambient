@@ -162,7 +162,7 @@
 .color-palette-premium .color-choice>span { width:27px; height:27px; border:2px solid rgba(255,255,255,.72); box-shadow:0 3px 8px rgba(0,0,0,.25); }
 .color-palette-premium .color-choice.selected>span { outline:2px solid #e5d1a6; outline-offset:3px; box-shadow:0 0 13px var(--swatch); }
 .color-palette-premium .color-choice small { max-width:100%; overflow:hidden; color:rgba(209,220,226,.68); font-size:6px; text-overflow:ellipsis; white-space:nowrap; }
-.ambient-zone-preview { position:relative; height:140px; overflow:hidden; border:1px solid rgba(255,255,255,.13); border-radius:12px; background:linear-gradient(135deg,#0b1520,#192b37); }
+.ambient-zone-preview { position:relative; height:auto; aspect-ratio:4 / 3; min-height:210px; max-height:330px; overflow:hidden; border:1px solid rgba(255,255,255,.13); border-radius:12px; background:linear-gradient(135deg,#0b1520,#192b37); }
 .ambient-zone-car-art { position:absolute; inset:13px 30% 18px; border:1px solid rgba(197,215,222,.5); border-radius:46% 46% 35% 35% / 19% 19% 22% 22%; background:linear-gradient(90deg,#101b25,#263944 48%,#101b25); box-shadow:0 10px 30px #0009,inset 0 0 25px rgba(255,255,255,.04); }
 .ambient-zone-car-art:before { content:""; position:absolute; inset:9% 18%; border-radius:48% 48% 14% 14%; border:1px solid rgba(175,199,209,.35); background:linear-gradient(180deg,#1b2c37,#0e1821 50%,#22323c); }
 .zone-seat-art { position:absolute; z-index:2; width:22%; height:23%; border:1px solid rgba(205,220,225,.35); border-radius:7px; background:linear-gradient(140deg,#52616a,#1b2832); box-shadow:0 3px 8px #0008; }
@@ -325,3 +325,45 @@
 }
 /* The system header already carries the brand, time and BLE state; keep the hero cinematic and uncluttered. */
 .home-hero-topline { display:none; }
+
+/* Iluminação visual sincronizada com o mapeamento físico dos pixels. */
+.ambient-cabin-panel { background-image:var(--cabin-scene-image,url('./land-rover-cabin.webp')); background-size:cover; background-position:center 48%; }
+.ambient-cabin-led-layer { position:absolute; inset:0; z-index:2; pointer-events:none; overflow:hidden; }
+.ambient-live-led { position:absolute; display:block; padding:0; border:0; background:transparent; transform:translate(-50%,-50%); pointer-events:auto; cursor:pointer; opacity:var(--led-opacity,1); transition:opacity .22s ease,filter .22s ease; }
+.ambient-live-led:before { content:""; position:absolute; left:0; right:0; top:50%; height:var(--led-thickness,7px); transform:translateY(-50%); border-radius:999px; background:var(--led-color); box-shadow:0 0 7px 2px var(--led-color),0 0 20px 7px color-mix(in srgb,var(--led-color) 70%,transparent); filter:blur(.2px); }
+.ambient-live-led-strip { width:clamp(38px,var(--led-length,30%),190px); height:max(18px,calc(var(--led-thickness,7px) + 12px)); }
+.ambient-live-led-spot { width:26px; height:26px; }
+.ambient-live-led-spot:before { width:var(--led-thickness,12px); height:var(--led-thickness,12px); left:50%; right:auto; top:50%; transform:translate(-50%,-50%); border-radius:50%; }
+.ambient-live-led-area { width:var(--led-length,22%); min-width:36px; height:max(20px,calc(var(--led-thickness,12px) * 2)); }
+.ambient-live-led-area:before { top:0; bottom:0; height:auto; border-radius:8px; transform:none; filter:blur(9px); }
+.ambient-live-led.is-muted { opacity:.06; filter:saturate(.25); }
+.ambient-live-led:focus-visible { outline:2px solid #f5d9a4; outline-offset:5px; border-radius:8px; }
+#ambientCabinLedMarkers[data-effect="BREATHE"] .ambient-live-led:before,
+.led-zone-preview[data-effect="BREATHE"] .led-zone-marker:before,
+#ledMapStage[data-effect="BREATHE"] .led-map-marker:before { animation:voyage-led-breathe var(--led-animation-duration,2800ms) ease-in-out infinite; }
+#ambientCabinLedMarkers[data-effect="RAINBOW"] .ambient-live-led:before,
+.led-zone-preview[data-effect="RAINBOW"] .led-zone-marker:before,
+#ledMapStage[data-effect="RAINBOW"] .led-map-marker:before { background:linear-gradient(90deg,#ff003c,#ff9e00,#eaff00,#00d17c,#00b9ff,#8b38ff,#ff2a9d); background-size:240% 100%; animation:voyage-led-spectrum var(--led-animation-duration,2800ms) linear infinite; }
+.led-zone-marker.is-muted:before,.led-map-stage.lighting-off .led-map-marker:before { opacity:.14; }
+.led-map-stage[data-effect="BREATHE"] .led-map-marker:before { animation:voyage-led-breathe var(--led-animation-duration,2800ms) ease-in-out infinite; }
+.led-map-stage[data-effect="RAINBOW"] .led-map-marker:before { background:linear-gradient(90deg,#ff003c,#ff9e00,#eaff00,#00d17c,#00b9ff,#8b38ff,#ff2a9d); background-size:240% 100%; animation:voyage-led-spectrum var(--led-animation-duration,2800ms) linear infinite; }
+.led-zone-preview[data-effect="BREATHE"] .led-zone-marker:before { animation:voyage-led-breathe var(--led-animation-duration,2800ms) ease-in-out infinite; }
+.led-zone-preview[data-effect="RAINBOW"] .led-zone-marker:before { background:linear-gradient(90deg,#ff003c,#ff9e00,#eaff00,#00d17c,#00b9ff,#8b38ff,#ff2a9d); background-size:240% 100%; animation:voyage-led-spectrum var(--led-animation-duration,2800ms) linear infinite; }
+@keyframes voyage-led-breathe { 0%,100% { opacity:.08; filter:brightness(.65) blur(1px); } 50% { opacity:1; filter:brightness(1.45) blur(.1px); } }
+@keyframes voyage-led-spectrum { from { background-position:0% 50%; filter:hue-rotate(0deg) brightness(.9); } to { background-position:100% 50%; filter:hue-rotate(360deg) brightness(1.3); } }
+@media (prefers-reduced-motion:reduce) {
+  #ambientCabinLedMarkers .ambient-live-led:before,
+  .led-zone-preview .led-zone-marker:before,
+  #ledMapStage .led-map-marker:before { animation:none!important; }
+}
+
+
+/* Cenas fotográficas individuais: cada preset tem sua própria cabine e atmosfera. */
+.ambient-theme-card.theme-flora:before { background-image:linear-gradient(115deg,rgba(4,9,15,.12),rgba(3,8,13,.45)),url('./scenes/flora.webp'); background-position:center; background-size:cover; }
+.ambient-theme-card.theme-sport:before { background-image:linear-gradient(115deg,rgba(4,3,5,.12),rgba(3,4,8,.46)),url('./scenes/sport.webp'); background-position:center; background-size:cover; }
+.ambient-theme-card.theme-sport-pulse:before { background-image:linear-gradient(115deg,rgba(4,3,5,.1),rgba(3,4,8,.42)),url('./scenes/sport-pulse.webp'); background-position:center; background-size:cover; }
+.ambient-theme-card.theme-moonlight:before { background-image:linear-gradient(115deg,rgba(3,7,15,.12),rgba(3,8,13,.48)),url('./scenes/moonlight.webp'); background-position:center; background-size:cover; }
+.ambient-theme-card.theme-ocean:before { background-image:linear-gradient(115deg,rgba(2,8,14,.12),rgba(3,8,13,.45)),url('./scenes/ocean.webp'); background-position:center; background-size:cover; }
+.ambient-theme-card.theme-aurora:before { background-image:linear-gradient(115deg,rgba(4,5,14,.12),rgba(3,8,13,.48)),url('./scenes/aurora.webp'); background-position:center; background-size:cover; }
+.ambient-theme-card.theme-sunset:before { background-image:linear-gradient(115deg,rgba(13,7,3,.1),rgba(3,8,13,.46)),url('./scenes/sunset.webp'); background-position:center; background-size:cover; }
+.ambient-theme-card.theme-relax:before { background-image:linear-gradient(115deg,rgba(12,9,5,.12),rgba(3,8,13,.45)),url('./scenes/relax.webp'); background-position:center; background-size:cover; }

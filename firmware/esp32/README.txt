@@ -1,14 +1,13 @@
-FIRMWARE ESP32-S3 — ÁREA DE DESENVOLVIMENTO
+VOYAGE CORE 0.5.1 — FIRMWARE PRIVADO
 
-O repositório do site é público. Não publique arquivos .ino nem o código-fonte privado do controlador.
+Hardware deste arquivo: ESP32-S3 N16R8, cinco pixels WS2812B em cadeia, pino de dados GPIO 12.
 
-Firmware BLE originalmente instalado:
-- Nome BLE: Voyage Ambient
-- Serviço: 7b9e0001-7a3d-4f5b-9c2a-6e1d0a5b0001
-- Característica: 7b9e0002-7a3d-4f5b-9c2a-6e1d0a5b0001
-- Comandos legados: POWER, COLOR, BRIGHTNESS, EFFECT, SPEED e PING
-- Cinco pixels WS2812B em cadeia no GPIO 12; a versão inicial os controla juntos.
+Bibliotecas: Adafruit NeoPixel (Arduino Library Manager). BLEDevice/BLEServer/BLEUtils/BLE2902 e Preferences vêm do pacote de placas Espressif ESP32.
 
-O site reconhece opcionalmente o firmware privado 0.5.0, descrito em FIRMWARE-0.5.0-MANIFEST.md. O fonte .ino deve ser mantido fora deste repositório público e distribuído apenas pelo pacote privado do proprietário.
+Arduino IDE: selecione ESP32S3 Dev Module. Faça backup do firmware atual. Abra VoyageAmbientBLE_FW_0_5_1.ino e clique em Verify. Só grave via USB se compilar sem erros. Depois conecte pelo Voyage Ambient e confira a identificação INFO=0.5.1,5,LT,LC.
 
-Atualizar somente o site não exige regravar o ESP32. O testador físico individual e as cores independentes por pixel só são habilitados após instalar o firmware privado 0.5.0.
+Funções: cinco pixels endereçáveis, cor global e individual, brilho, POWER, efeitos SOLID/BREATHE/RAINBOW, SPEED, teste sequencial LED_TEST e persistência de preferências via Preferences/NVS.
+
+Não incluído: OTA, relés, entradas 12 V, automações por sensores, CAN/RS-485, autenticação ou secure boot. Este firmware é pareado apenas ao hardware de cinco pixels atual.
+
+Privacidade: não publique este arquivo .ino no GitHub público.

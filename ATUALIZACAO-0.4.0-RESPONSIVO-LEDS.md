@@ -1,45 +1,30 @@
-# Voyage Ambient 0.4.0 — Responsividade e mapeamento de LEDs
+# Atualização do site 0.4.0 — responsivo, cenas e mapeamento integrado
 
-## O que foi alterado
+Esta atualização mantém a versão da aplicação em 0.4.0 e integra as configurações de LED entre a tela de iluminação e o Modo Desenvolvedor.
 
-1. CSS responsivo por orientação. Em retrato (celular), a navegação desce para uma barra inferior e as telas passam para uma coluna; em paisagem, a navegação lateral e os painéis horizontais são mantidos.
-2. Oito cenas passam a usar imagens próprias: Flora, Sport, Sport Pulse, Moonlight, Ocean, Aurora, Sunset e Relax.
-3. O painel de zonas usa fotografia realista do habitáculo com posições numeradas dos LEDs.
-4. O Modo Desenvolvedor permite selecionar cinco pixels físicos, renomear, atribuir área, tipo, cor, posição X/Y, comprimento, espessura e opacidade. O marcador pode ser arrastado na imagem.
-5. Teste individual e sequência de identificação dos cinco LEDs. Os botões só são habilitados quando o controlador anuncia a capacidade `LED_TEST`.
-6. Controle de cor por pixel com comando BLE compacto `LC=índice,r,g,b`, para caber no payload BLE padrão sem depender de negociação de MTU.
-7. A versão do produto permanece 0.4.0; o schema das configurações passa para 3 e preserva os dados salvos no schema anterior.
+- Layout retrato para celular e paisagem para multimídia.
+- O editor de zonas é a fonte de verdade para índice, nome, posição, tipo, comprimento, espessura, cor e opacidade de cada pixel.
+- A tela Ambiente, a aba Zonas e o mapa do desenvolvedor usam os mesmos cinco pontos mapeados.
+- Cada cena possui uma fotografia própria de cabine (Flora, Sport, Sport Pulse, Moonlight, Ocean, Aurora, Sunset e Relax).
+- A prévia visual simula Estático, Respiração e Arco-íris em todos os painéis de iluminação.
+- Cores dianteira/traseira são traduzidas para os pixels conforme a zona definida no mapeamento.
+- O estado e o mapa continuam salvos na configuração local e entram no backup/exportação do desenvolvedor.
 
-## Arquivos incluídos na atualização incremental
+O firmware privado Voyage Core 0.5.1 está pareado com o protocolo do site: `POWER`, `COLOR`, `LC`, `BRIGHTNESS`, `EFFECT`, `SPEED`, `LED_TEST`, `INFO` e `PING`. O ESP32 grava cores, brilho, efeito, velocidade e estado na NVS.
 
-- `src/main.js`
-- `src/style.css`
-- `src/core/config-store.js`
-- `src/core/ble-client.js`
-- `src/core/led-mapping.js` (novo)
-- `src/themes/land-rover/responsive.css` (novo)
-- `src/themes/land-rover/scenes/*.webp` (oito imagens novas)
-- `tests/core.test.js`
-- `.github/workflows/deploy.yml`
-- `README.md`
+Limite: a instalação atual possui cinco pixels físicos no GPIO 12. O firmware não ativa relés, sensores, câmera, OTA ou módulos adicionais; essas funções precisam de hardware/protocolos futuros. O fonte `.ino` fica fora do GitHub público.
 
-## Compatibilidade do ESP32
 
-O site preserva o protocolo BLE legado e consulta `INFO` ao conectar. No firmware atual, os botões de teste físico ficam desabilitados; o mapeamento e as posições podem ser editados e salvos mesmo assim.
+## Integração de iluminação e firmware 0.5.1
 
-Para piscar pixels individuais e enviar cores independentes será necessário gravar no ESP32-S3 o firmware privado 0.5.0, entregue separadamente. Esse firmware preserva os UUIDs e os comandos antigos e acrescenta:
+- O editor de mapeamento, a prévia Ambiente, a aba Zonas e o mapa do desenvolvedor usam o mesmo `ledMap` como fonte de verdade.
+- A cor e a zona de cada um dos cinco pixels são refletidas nas três prévias; as cores por pixel são enviadas por `LC=índice,r,g,b` quando o controlador anuncia `LC`.
+- A intensidade visual acompanha brilho global e opacidade de cada ponto; as animações Respiração e Arco-íris acompanham o efeito ativo e a velocidade da interface.
+- Cada cena possui imagens de cabine e cartões próprios: Flora, Sport, Sport Pulse, Moonlight, Ocean, Aurora, Sunset e Relax.
+- Ao mover um pixel de zona, os resumos das zonas de origem e destino são atualizados.
 
-- `INFO` → `INFO=0.5.0,5,LT,LC`
-- `LED_TEST=1..5` → três pulsos no pixel indicado
-- `LED_TEST=0` → interrompe o teste
-- `LC=índice,r,g,b` → cor de um pixel específico
+### Pareamento do hardware atual
 
-**Não envie o arquivo `.ino` ao repositório público.**
+O firmware privado `VoyageAmbientBLE_FW_0_5_1.ino` é pareado com o ESP32-S3, GPIO 12 e cinco pixels WS2812B em cadeia. Preserva o nome BLE, UUIDs e comandos legados, adiciona cor/teste por pixel e grava preferências na NVS. Ele não implementa ainda OTA, relés, leitura de entradas 12 V ou o futuro protocolo de módulos.
 
-## Validação realizada
-
-- `node --check` no JavaScript principal e nos módulos novos.
-- 36 testes automatizados em `npm test`.
-- CSS analisado com parser CSS sem erros sintáticos.
-- A compilação Vite não pôde ser executada localmente: a instalação de dependências do npm expirou neste ambiente. O workflow do GitHub Actions executará `npm test` e `npm run build` na publicação.
-- O firmware `.ino` foi revisado estaticamente, mas deve ser compilado no Arduino IDE com o pacote ESP32 e a biblioteca Adafruit NeoPixel já utilizados no hardware antes de ser gravado.
+O arquivo `.ino` é fornecido separadamente e não deve ser enviado ao repositório público. Faça backup, compile no Arduino IDE com `ESP32S3 Dev Module` e valide em Verify antes de gravar por USB.

@@ -10,6 +10,20 @@ import { saveAsset, listAssets, deleteAsset } from './core/asset-library.js';
 import { exportConfiguration, exportDeveloperPackage } from './core/developer-tools.js';
 import { normalizeLedMap, makeLedTestCommand, makeLedColorCommand, parseFirmwareInfo } from './core/led-mapping.js';
 import cabinImageUrl from './themes/land-rover/land-rover-cabin.webp';
+import floraCabinUrl from './themes/land-rover/interiors/flora.webp';
+import sportCabinUrl from './themes/land-rover/interiors/sport.webp';
+import sportPulseCabinUrl from './themes/land-rover/interiors/sport-pulse.webp';
+import moonlightCabinUrl from './themes/land-rover/interiors/moonlight.webp';
+import oceanCabinUrl from './themes/land-rover/interiors/ocean.webp';
+import auroraCabinUrl from './themes/land-rover/interiors/aurora.webp';
+import sunsetCabinUrl from './themes/land-rover/interiors/sunset.webp';
+import relaxCabinUrl from './themes/land-rover/interiors/relax.webp';
+
+const CABIN_SCENE_IMAGES = {
+  flora: floraCabinUrl, sport: sportCabinUrl, 'sport-pulse': sportPulseCabinUrl,
+  moonlight: moonlightCabinUrl, ocean: oceanCabinUrl, aurora: auroraCabinUrl,
+  sunset: sunsetCabinUrl, relax: relaxCabinUrl,
+};
 
 // A configuração é única e versionada. A migração preserva as preferências da versão anterior.
 let appConfig = loadConfig();
@@ -30,14 +44,14 @@ const PALETTE = [
 ].map(([name, color]) => ({ name, color }));
 
 const MOODS = [
-  { id: 'flora', name: 'FLORA', subtitle: 'Verde natural e sereno', color: '#37D67A', brightness: 72, effect: 'BREATHE' },
-  { id: 'sport', name: 'SPORT', subtitle: 'Vermelho intenso', color: '#FF0000', brightness: 92, effect: 'SOLID' },
-  { id: 'sport-pulse', name: 'SPORT PULSE', subtitle: 'Pulso vermelho suave', color: '#FF1A1A', brightness: 88, effect: 'BREATHE' },
-  { id: 'moonlight', name: 'MOONLIGHT', subtitle: 'Azul frio e sofisticado', color: '#91B4D8', brightness: 68, effect: 'SOLID' },
-  { id: 'ocean', name: 'OCEAN', subtitle: 'Azul oceânico', color: '#00BBD4', brightness: 74, effect: 'BREATHE' },
-  { id: 'aurora', name: 'AURORA', subtitle: 'Ciclo cromático imersivo', color: '#8E5BFF', brightness: 72, effect: 'RAINBOW' },
-  { id: 'sunset', name: 'SUNSET', subtitle: 'Âmbar e pôr do sol', color: '#FF8A42', brightness: 70, effect: 'BREATHE' },
-  { id: 'relax', name: 'RELAX', subtitle: 'Branco quente e conforto', color: '#FFD6A0', brightness: 54, effect: 'BREATHE' },
+  { id: 'flora', name: 'FLORA', subtitle: 'Verde natural e sereno', color: '#37D67A', frontColor: '#36D67A', rearColor: '#83F0A9', brightness: 72, effect: 'BREATHE' },
+  { id: 'sport', name: 'SPORT', subtitle: 'Vermelho intenso', color: '#FF0000', frontColor: '#FF0000', rearColor: '#D90018', brightness: 92, effect: 'SOLID' },
+  { id: 'sport-pulse', name: 'SPORT PULSE', subtitle: 'Pulso vermelho suave', color: '#FF1A1A', frontColor: '#FF1A1A', rearColor: '#980018', brightness: 88, effect: 'BREATHE' },
+  { id: 'moonlight', name: 'MOONLIGHT', subtitle: 'Azul frio e sofisticado', color: '#91B4D8', frontColor: '#91B4D8', rearColor: '#517CB2', brightness: 68, effect: 'SOLID' },
+  { id: 'ocean', name: 'OCEAN', subtitle: 'Azul oceânico', color: '#00BBD4', frontColor: '#00BBD4', rearColor: '#007F9F', brightness: 74, effect: 'BREATHE' },
+  { id: 'aurora', name: 'AURORA', subtitle: 'Ciclo cromático imersivo', color: '#8E5BFF', frontColor: '#8E5BFF', rearColor: '#13C6D8', brightness: 72, effect: 'RAINBOW' },
+  { id: 'sunset', name: 'SUNSET', subtitle: 'Âmbar e pôr do sol', color: '#FF8A42', frontColor: '#FF8A42', rearColor: '#FFC16C', brightness: 70, effect: 'BREATHE' },
+  { id: 'relax', name: 'RELAX', subtitle: 'Branco quente e conforto', color: '#FFD6A0', frontColor: '#FFD6A0', rearColor: '#F4E4CD', brightness: 54, effect: 'BREATHE' },
 ];
 
 function loadSavedState() {
@@ -49,6 +63,7 @@ function loadSavedState() {
     effect: appConfig.lighting.effect || 'SOLID',
     speed: appConfig.lighting.speed ?? 45,
     profile: appConfig.lighting.profile || 'MOONLIGHT',
+    sceneId: appConfig.lighting.sceneId || (MOODS.find((mood) => mood.name === appConfig.lighting.profile)?.id || 'moonlight'),
     zones: {
       front: appConfig.lighting.zones?.front || appConfig.lighting.color || '#91B4D8',
       rear: appConfig.lighting.zones?.rear || appConfig.lighting.color || '#91B4D8',
@@ -158,7 +173,7 @@ app.innerHTML = `
           </nav>
 
           <div class="ambient-workspace">
-            <section class="ambient-cabin-panel" aria-label="Prévia do habitáculo">
+            <section class="ambient-cabin-panel" id="ambientCabinPanel" aria-label="Prévia do habitáculo">
               <div class="ambient-cabin-photo"></div>
               <div class="ambient-cabin-vignette"></div>
               <div class="ambient-cabin-heading">
@@ -166,8 +181,8 @@ app.innerHTML = `
                 <h2>Uma atmosfera.<br><em>Do seu jeito.</em></h2>
                 <p>Escolha cores, zonas e efeitos para o interior.</p>
               </div>
-              <div class="ambient-cabin-zone-glows"><i class="front-glow"></i><i class="rear-glow"></i></div>
-              <div class="ambient-cabin-caption"><span><i class="live-dot" id="lightingStatusDot"></i><b id="lightingState">ILUMINAÇÃO ATIVA</b></span><small>5 LEDS • GPIO 12 • CADEIA ÚNICA</small></div>
+              <div class="ambient-cabin-led-layer" id="ambientCabinLedMarkers" aria-label="Iluminação mapeada em tempo real"></div>
+              <div class="ambient-cabin-caption"><span><i class="live-dot" id="lightingStatusDot"></i><b id="lightingState">ILUMINAÇÃO ATIVA</b></span><small>5 PIXELS ENDEREÇÁVEIS • GPIO 12</small></div>
             </section>
 
             <div class="ambient-control-panel">
@@ -194,12 +209,12 @@ app.innerHTML = `
 
               <section class="ambient-tab-panel" id="lighting-panel-zonas" data-light-panel="zonas" hidden>
                 <div class="ambient-panel-heading"><div><span class="eyebrow">PERSONALIZAÇÃO POR ÁREA</span><h2>Zonas de iluminação</h2><p>Defina uma cor para a frente e outra para a traseira.</p></div><span class="panel-counter">2 ZONAS</span></div>
-                <div class="ambient-zone-preview led-zone-preview"><img class="ambient-zone-photo" src="${cabinImageUrl}" alt="Interior do veículo visto da cabine"/><div class="ambient-zone-photo-shade"></div><div class="led-zone-markers" id="lightingLedMarkers" aria-label="Posições configuradas dos LEDs"></div><div class="ambient-zone-preview-caption"><span>MAPA DE ILUMINAÇÃO DO HABITÁCULO</span><small>PRÉVIA CONFIGURÁVEL</small></div></div>
+                <div class="ambient-zone-preview led-zone-preview"><img class="ambient-zone-photo" id="ambientZonePhoto" src="${cabinImageUrl}" alt="Interior do veículo visto da cabine"/><div class="ambient-zone-photo-shade"></div><div class="led-zone-markers" id="lightingLedMarkers" aria-label="Posições configuradas dos LEDs"></div><div class="ambient-zone-preview-caption"><span>MAPA DE ILUMINAÇÃO DO HABITÁCULO</span><small>PRÉVIA CONFIGURÁVEL</small></div></div>
                 <div class="ambient-zone-controls">
                   <article class="ambient-zone-control"><div class="ambient-zone-top"><span class="zone-index">01</span><div><b>Dianteira</b><small>Motorista e passageiro</small></div><span class="zone-swatch" id="frontZoneSwatch"></span></div><div class="ambient-zone-input-row"><label for="frontZoneColor">Cor dianteira</label><input id="frontZoneColor" type="color" value="#91B4D8"/><strong id="frontZoneHex">#91B4D8</strong></div></article>
                   <article class="ambient-zone-control"><div class="ambient-zone-top"><span class="zone-index">02</span><div><b>Traseira</b><small>Banco traseiro</small></div><span class="zone-swatch" id="rearZoneSwatch"></span></div><div class="ambient-zone-input-row"><label for="rearZoneColor">Cor traseira</label><input id="rearZoneColor" type="color" value="#91B4D8"/><strong id="rearZoneHex">#91B4D8</strong></div></article>
                 </div>
-                <div class="ambient-zone-footer"><button class="ambient-inline-action" id="syncZoneColors" type="button">⛓ UNIFICAR CORES</button><p id="zoneFirmwareNote">As cores por zona são salvas no aplicativo. O firmware atual ainda envia uma cor única para os cinco LEDs; o firmware 0.5.0 habilita o controle por pixel.</p></div>
+                <div class="ambient-zone-footer"><button class="ambient-inline-action" id="syncZoneColors" type="button">⛓ UNIFICAR CORES</button><p id="zoneFirmwareNote">As cores por zona são salvas no aplicativo. O firmware atual ainda envia uma cor única para os cinco LEDs; o firmware Voyage Core 0.5.1 habilita o controle por pixel e a gravação das preferências no controlador.</p></div>
                 <div class="lighting-led-summary"><div><b>Mapeamento físico dos LEDs</b><small>Configure a posição e o nome de cada ponto no Modo Desenvolvedor.</small></div><button class="ambient-inline-action" type="button" data-go="developer">ABRIR MAPEAMENTO ↗</button></div>
               </section>
 
@@ -291,7 +306,7 @@ app.innerHTML = `
             <div class="dev-section-heading"><div><span class="eyebrow">ILUMINAÇÃO • HARDWARE</span><h2>Editor de zonas e mapeamento dos LEDs</h2><p>Associe cada pixel físico a uma posição do carro. Arraste os pontos sobre a imagem para ajustar o local.</p></div><span class="count-label" id="ledFirmwareBadge">FIRMWARE LEGADO</span></div>
             <div class="led-map-layout">
               <div class="led-map-stage" id="ledMapStage">
-                <img src="${cabinImageUrl}" alt="Interior do veículo para mapear os LEDs" draggable="false"/>
+                <img id="ledMapPhoto" src="${cabinImageUrl}" alt="Interior do veículo para mapear os LEDs" draggable="false"/>
                 <div class="led-map-shade"></div>
                 <div class="led-map-markers" id="ledMapMarkers"></div>
                 <div class="led-map-stage-label"><span>VISTA DO HABITÁCULO</span><small>SELECIONE OU ARRASTE UM PONTO</small></div>
@@ -305,7 +320,7 @@ app.innerHTML = `
             <div class="led-tester-panel">
               <div class="led-tester-head"><div><b>Testador de LEDs</b><small>Identifique fisicamente cada fita ou ponto antes de nomear.</small></div><div class="led-tester-actions"><button class="secondary-button" id="startLedSequence" type="button">TESTAR EM SEQUÊNCIA</button><button class="secondary-button" id="stopLedTest" type="button" disabled>PARAR</button></div></div>
               <div class="led-tester-list" id="ledTesterList"></div>
-              <p class="small-note" id="ledTesterStatus">O teste físico individual requer o firmware Voyage Ambient 0.5.0. Com o firmware atual, os cinco LEDs ainda acendem juntos.</p>
+              <p class="small-note" id="ledTesterStatus">O teste físico individual requer o firmware Voyage Core 0.5.1. Com o firmware atual, os cinco LEDs ainda acendem juntos.</p>
             </div>
             <div class="led-map-save-row"><span>As posições e nomes ficam salvos na configuração deste navegador e entram no pacote de exportação do desenvolvedor.</span><button class="primary-button" id="saveLedMap" type="button">SALVAR MAPEAMENTO</button></div>
           </article>
@@ -413,7 +428,7 @@ function saveState() {
   const result = updateConfig(appConfig, {
     lighting: {
       powered: state.powered, color: state.color, brightness: state.brightness,
-      effect: state.effect, speed: state.speed, profile: state.profile, zones: { ...state.zones }, ledMap: normalizeLedMap(state.ledMap),
+      effect: state.effect, speed: state.speed, profile: state.profile, sceneId: state.sceneId, zones: { ...state.zones }, ledMap: normalizeLedMap(state.ledMap),
     },
     camera: { frontPackage: state.cameraPackage },
   });
@@ -440,7 +455,12 @@ function render() {
   if ($('#rearZoneHex')) $('#rearZoneHex').textContent = state.zones.rear.toUpperCase();
   if ($('#frontZoneSwatch')) $('#frontZoneSwatch').style.background = state.zones.front;
   if ($('#rearZoneSwatch')) $('#rearZoneSwatch').style.background = state.zones.rear;
-  if ($('#zoneFirmwareNote')) $('#zoneFirmwareNote').dataset.linked = state.zones.linked ? 'true' : 'false';
+  if ($('#zoneFirmwareNote')) {
+    $('#zoneFirmwareNote').dataset.linked = state.zones.linked ? 'true' : 'false';
+    $('#zoneFirmwareNote').textContent = state.firmwareFeatures.includes('LED_COLOR')
+      ? `Voyage Core ${state.firmwareVersion}: controle individual por pixel ativo. As cores dianteira e traseira seguem o mapeamento salvo.`
+      : 'As cores e posições ficam salvas no aplicativo. Para aplicar cores e testes individualmente nos cinco pixels, conecte o Voyage Core 0.5.1.';
+  }
   if ($('#homeBrightness')) $('#homeBrightness').textContent = `${state.brightness}%`;
   if ($('#homePowerText')) $('#homePowerText').textContent = state.powered ? 'SISTEMA LIGADO' : 'SISTEMA DESLIGADO';
   if ($('#homeColorDot')) $('#homeColorDot').style.background = color;
@@ -480,6 +500,7 @@ function render() {
   $$('.effect-button').forEach((button) => button.classList.toggle('active', button.dataset.effect === state.effect));
   $$('.color-choice').forEach((button) => button.classList.toggle('selected', button.dataset.color.toLowerCase() === color.toLowerCase()));
   renderLedLightingMarkers();
+  renderLightingVisuals();
 }
 
 function setLightingTab(tab) {
@@ -533,8 +554,10 @@ function setColor(color, name = colorName(color)) {
     state.ledMap = normalizeLedMap(state.ledMap).map((item) => ({ ...item, color: state.color }));
   }
   saveState(); render();
-  const [r, g, b] = hexToRgb(state.color);
-  sendCommand(`COLOR=${r},${g},${b}`);
+  if (state.zones.linked) {
+    const [r, g, b] = hexToRgb(state.color);
+    sendCommand(`COLOR=${r},${g},${b}`);
+  }
   if (state.firmwareFeatures.includes('LED_COLOR')) state.ledMap.forEach((item) => sendCommand(makeLedColorCommand(item.index, item.color)));
 }
 
@@ -544,21 +567,16 @@ function setZoneColor(zone, color) {
   state.ledMap = normalizeLedMap(state.ledMap).map((item) => item.zone === zone ? { ...item, color: color.toLowerCase() } : item);
   document.documentElement.style.setProperty(zone === 'front' ? '--front-zone' : '--rear-zone', color.toLowerCase());
   saveState();
-  if (zone === 'front') {
-    if ($('#frontZoneHex')) $('#frontZoneHex').textContent = color.toUpperCase();
-    if ($('#frontZoneSwatch')) $('#frontZoneSwatch').style.background = color;
-  } else {
-    if ($('#rearZoneHex')) $('#rearZoneHex').textContent = color.toUpperCase();
-    if ($('#rearZoneSwatch')) $('#rearZoneSwatch').style.background = color;
-  }
+  syncZoneControlsFromMap(zone);
+  renderLedLightingMarkers();
+  renderLightingVisuals();
   const capable = state.firmwareFeatures.includes('LED_COLOR');
   if (capable) {
     state.ledMap.filter((item) => item.zone === zone).forEach((item) => sendCommand(makeLedColorCommand(item.index, item.color)));
-    toast(`Cor da zona ${zone === 'front' ? 'dianteira' : 'traseira'} aplicada aos LEDs mapeados.`);
+    toast(`Cor ${color.toUpperCase()} aplicada aos ${state.ledMap.filter((item) => item.zone === zone).length} pixel(is) da zona ${zone === 'front' ? 'dianteira' : 'traseira'}.`);
   } else {
-    toast('Cor salva no aplicativo. Para aplicar por LED, instale o firmware Voyage Ambient 0.5.0.');
+    toast('Cor salva no aplicativo. Para aplicar por pixel, conecte o Voyage Core 0.5.1.');
   }
-  renderLightingLedMarkers();
 }
 
 function setPower(powered) {
@@ -572,10 +590,14 @@ function applyMood(moodId) {
   if (!mood) return;
   state.color = mood.color;
   state.profile = mood.name;
+  state.sceneId = mood.id;
   state.brightness = mood.brightness;
   state.effect = mood.effect;
-  state.zones = { ...state.zones, front: mood.color, rear: mood.color, linked: true };
-  state.ledMap = normalizeLedMap(state.ledMap).map((item) => ({ ...item, color: mood.color }));
+  state.zones = { ...state.zones, front: mood.frontColor || mood.color, rear: mood.rearColor || mood.color, linked: false };
+  state.ledMap = normalizeLedMap(state.ledMap).map((item) => ({
+    ...item,
+    color: item.zone === 'front' ? (mood.frontColor || mood.color) : item.zone === 'rear' ? (mood.rearColor || mood.color) : mood.color,
+  }));
   saveState(); render();
   $$('[data-mood]').forEach((button) => button.classList.toggle('active', button.dataset.mood === moodId));
   sendCurrentState();
@@ -653,18 +675,109 @@ function renderModuleList() {
 
 function saveLedMapConfig() {
   state.ledMap = normalizeLedMap(state.ledMap);
-  const result = updateConfig(appConfig, { lighting: { ledMap: state.ledMap } });
-  appConfig = result.config;
-  if (!result.ok) toast('Não foi possível salvar o mapeamento dos LEDs.');
-  return result.ok;
+  saveState();
+  return true;
 }
 
 function renderLedLightingMarkers() {
+  const leds = normalizeLedMap(state.ledMap);
   const container = $('#lightingLedMarkers');
-  if (!container) return;
-  container.innerHTML = normalizeLedMap(state.ledMap).map((led) => `
-    <button class="led-zone-marker led-zone-marker-${led.type}" type="button" data-select-led="${led.index}" title="LED ${led.index} • ${escapeHtml(led.name)}" aria-label="Editar LED ${led.index}: ${escapeHtml(led.name)}" style="left:${led.x}%;top:${led.y}%;--led-color:${led.color};--led-opacity:${led.opacity / 100};--led-length:${led.length}%;--led-thickness:${led.thickness}px"><span>${led.index}</span></button>
-  `).join('');
+  if (container) {
+    container.innerHTML = leds.map((led) => {
+      const opacity = state.powered ? (led.opacity / 100) * (state.brightness / 100) : 0.035;
+      return `
+        <button class="led-zone-marker led-zone-marker-${led.type} ${state.powered ? 'is-powered' : 'is-muted'}" type="button" data-select-led="${led.index}" title="LED ${led.index} • ${escapeHtml(led.name)}" aria-label="Editar LED ${led.index}: ${escapeHtml(led.name)}" style="left:${led.x}%;top:${led.y}%;--led-color:${led.color};--led-opacity:${opacity};--led-length:${led.length}%;--led-thickness:${led.thickness}px"><span>${led.index}</span></button>
+      `;
+    }).join('');
+  }
+  const liveLayer = $('#ambientCabinLedMarkers');
+  if (liveLayer) {
+    liveLayer.dataset.effect = state.effect;
+    liveLayer.dataset.powered = state.powered ? 'true' : 'false';
+    liveLayer.innerHTML = leds.map((led) => {
+      const opacity = state.powered ? (led.opacity / 100) * (state.brightness / 100) : 0.035;
+      return `
+        <button class="ambient-live-led ambient-live-led-${led.type} ${state.powered ? 'is-powered' : 'is-muted'}" type="button" data-select-led="${led.index}" title="${escapeHtml(led.name)} • ${led.color.toUpperCase()}" aria-label="${escapeHtml(led.name)}" style="left:${led.x}%;top:${led.y}%;--led-color:${led.color};--led-opacity:${opacity};--led-length:${led.length}%;--led-thickness:${led.thickness}px"><span class="sr-only">LED ${led.index}: ${escapeHtml(led.name)}</span></button>
+      `;
+    }).join('');
+  }
+  updateSceneCabinImages();
+}
+
+function getActiveMoodId() {
+  return CABIN_SCENE_IMAGES[state.sceneId] ? state.sceneId : (MOODS.find((mood) => mood.name === state.profile)?.id || 'moonlight');
+}
+
+function updateSceneCabinImages() {
+  const image = CABIN_SCENE_IMAGES[getActiveMoodId()] || cabinImageUrl;
+  const cabinPanel = $('#ambientCabinPanel');
+  const zonePhoto = $('#ambientZonePhoto');
+  const editorPhoto = $('#ledMapPhoto');
+  if (cabinPanel) {
+    cabinPanel.style.setProperty('--cabin-scene-image', `url("${image}")`);
+    cabinPanel.style.backgroundImage = `url("${image}")`;
+  }
+  if (zonePhoto && zonePhoto.getAttribute('src') !== image) zonePhoto.src = image;
+  if (editorPhoto && editorPhoto.getAttribute('src') !== image) editorPhoto.src = image;
+  const mood = MOODS.find((item) => item.id === getActiveMoodId());
+  if (cabinPanel) {
+    cabinPanel.dataset.effect = state.effect;
+    cabinPanel.dataset.powered = state.powered ? 'true' : 'false';
+    cabinPanel.dataset.scene = getActiveMoodId();
+  }
+  if (zonePhoto?.parentElement) {
+    zonePhoto.parentElement.dataset.effect = state.effect;
+    zonePhoto.parentElement.dataset.powered = state.powered ? 'true' : 'false';
+    zonePhoto.parentElement.dataset.scene = getActiveMoodId();
+  }
+  if (editorPhoto?.parentElement) {
+    editorPhoto.parentElement.dataset.effect = state.effect;
+    editorPhoto.parentElement.dataset.powered = state.powered ? 'true' : 'false';
+    editorPhoto.parentElement.dataset.scene = getActiveMoodId();
+  }
+  if (cabinPanel && mood) cabinPanel.style.setProperty('--scene-accent', mood.color);
+}
+
+function renderLightingVisuals() {
+  updateSceneCabinImages();
+  // Espelha a escala temporal do efeito BREATHE do firmware (6,5 s até 1 s).
+  const animationMs = Math.round(6500 - ((Math.max(1, Math.min(100, state.speed)) - 1) * (5500 / 99)));
+  document.documentElement.style.setProperty('--led-animation-duration', `${animationMs}ms`);
+  const layers = ['#ambientCabinLedMarkers', '#lightingLedMarkers'];
+  for (const selector of layers) {
+    const layer = $(selector);
+    if (!layer) continue;
+    layer.dataset.effect = state.effect;
+    layer.dataset.powered = state.powered ? 'true' : 'false';
+  }
+  const cabinPanel = $('#ambientCabinPanel');
+  if (cabinPanel) {
+    cabinPanel.classList.toggle('lighting-off', !state.powered);
+    cabinPanel.dataset.effect = state.effect;
+  }
+  const zonePreview = $('.led-zone-preview');
+  if (zonePreview) {
+    zonePreview.classList.toggle('lighting-off', !state.powered);
+    zonePreview.dataset.effect = state.effect;
+  }
+  const mapStage = $('#ledMapStage');
+  if (mapStage) {
+    mapStage.classList.toggle('lighting-off', !state.powered);
+    mapStage.dataset.effect = state.effect;
+  }
+}
+
+function syncZoneControlsFromMap(zone) {
+  const first = state.ledMap.find((item) => item.zone === zone);
+  if (!first) return;
+  state.zones = { ...state.zones, [zone]: first.color };
+  const input = zone === 'front' ? $('#frontZoneColor') : $('#rearZoneColor');
+  const hex = zone === 'front' ? $('#frontZoneHex') : $('#rearZoneHex');
+  const swatch = zone === 'front' ? $('#frontZoneSwatch') : $('#rearZoneSwatch');
+  if (input) input.value = first.color;
+  if (hex) hex.textContent = first.color.toUpperCase();
+  if (swatch) swatch.style.background = first.color;
+  document.documentElement.style.setProperty(zone === 'front' ? '--front-zone' : '--rear-zone', first.color);
 }
 
 function renderLedMapping() {
@@ -676,10 +789,14 @@ function renderLedMapping() {
   if (!markers || !list || !editor || !tester) return;
   const selected = leds.find((item) => item.index === selectedLedIndex) || leds[0];
   selectedLedIndex = selected.index;
+  updateSceneCabinImages();
 
-  markers.innerHTML = leds.map((led) => `
-    <button class="led-map-marker led-map-marker-${led.type} ${led.index === selectedLedIndex ? 'selected' : ''}" type="button" data-map-marker="${led.index}" aria-label="Selecionar LED ${led.index}" title="LED ${led.index} • ${escapeHtml(led.name)}" style="left:${led.x}%;top:${led.y}%;--led-color:${led.color};--led-opacity:${led.opacity / 100};--led-length:${led.length}%;--led-thickness:${led.thickness}px"><span>${led.index}</span></button>
-  `).join('');
+  markers.innerHTML = leds.map((led) => {
+    const opacity = state.powered ? (led.opacity / 100) * (state.brightness / 100) : 0.035;
+    return `
+      <button class="led-map-marker led-map-marker-${led.type} ${led.index === selectedLedIndex ? 'selected' : ''} ${state.powered ? 'is-powered' : 'is-muted'}" type="button" data-map-marker="${led.index}" aria-label="Selecionar LED ${led.index}" title="LED ${led.index} • ${escapeHtml(led.name)}" style="left:${led.x}%;top:${led.y}%;--led-color:${led.color};--led-opacity:${opacity};--led-length:${led.length}%;--led-thickness:${led.thickness}px"><span>${led.index}</span></button>
+    `;
+  }).join('');
 
   list.innerHTML = leds.map((led) => `
     <div class="led-map-list-row ${led.index === selectedLedIndex ? 'selected' : ''}">
@@ -712,6 +829,7 @@ function renderLedMapping() {
   `).join('');
   updateLedFirmwareStatus();
   attachLedMarkerDragging();
+  renderLightingVisuals();
 }
 
 function attachLedMarkerDragging() {
@@ -765,11 +883,21 @@ function handleLedMapField(event) {
   if (!field) return;
   const led = state.ledMap.find((item) => item.index === selectedLedIndex);
   if (!led) return;
+  const previousZone = led.zone;
   if (field === 'name' || field === 'zone' || field === 'type' || field === 'color') led[field] = event.target.value;
   else led[field] = Number(event.target.value);
   state.ledMap = normalizeLedMap(state.ledMap);
+  if (field === 'color') {
+    state.zones.linked = false;
+    if (led.zone === 'front' || led.zone === 'rear') syncZoneControlsFromMap(led.zone);
+  }
+  if (field === 'zone') {
+    if (previousZone === 'front' || previousZone === 'rear') syncZoneControlsFromMap(previousZone);
+    if (led.zone === 'front' || led.zone === 'rear') syncZoneControlsFromMap(led.zone);
+  }
   saveLedMapConfig();
   renderLedLightingMarkers();
+  renderLightingVisuals();
   const mapMarker = $(`#ledMapMarkers [data-map-marker="${selectedLedIndex}"]`);
   if (mapMarker) {
     mapMarker.style.left = `${led.x}%`; mapMarker.style.top = `${led.y}%`;
@@ -789,6 +917,7 @@ function handleLedMapField(event) {
   if (field === 'color' && state.firmwareFeatures.includes('LED_COLOR')) sendCommand(makeLedColorCommand(led.index, led.color));
   if (field === 'zone') renderLedMapping();
   renderLedLightingMarkers();
+  renderLightingVisuals();
 }
 
 function updateLedFirmwareStatus() {
@@ -798,19 +927,19 @@ function updateLedFirmwareStatus() {
   const note = $('#ledTesterStatus');
   const start = $('#startLedSequence');
   if (badge) {
-    badge.textContent = supportsTest && supportsColor ? `FW ${state.firmwareVersion} • LEDS INDIVIDUAIS` : 'FIRMWARE LEGADO';
+    badge.textContent = supportsTest && supportsColor ? `FW ${state.firmwareVersion} • LEDS INDIVIDUAIS` : (state.connected ? 'FIRMWARE SEM MAPEAMENTO INDIVIDUAL' : 'CONTROLADOR NÃO IDENTIFICADO');
     badge.classList.toggle('is-ready', supportsTest && supportsColor);
   }
   if (start) start.disabled = !state.connected || !supportsTest;
   $$('#ledMapList [data-test-led], #ledTesterList [data-test-led]').forEach((button) => { button.disabled = !state.connected || !supportsTest; });
-  if (note && !supportsTest) note.textContent = state.connected ? 'Controlador conectado, mas sem o recurso LED_TEST. Grave o firmware 0.5.0 para piscar cada pixel individualmente.' : 'Conecte o ESP32 e use o firmware Voyage Ambient 0.5.0 para testar cada pixel individualmente.';
+  if (note && !supportsTest) note.textContent = state.connected ? 'Controlador conectado, mas sem o recurso LED_TEST. Grave o firmware Voyage Core 0.5.1 para piscar cada pixel individualmente.' : 'Conecte o ESP32 e use o firmware Voyage Core 0.5.1 para testar cada pixel individualmente.';
   const stop = $('#stopLedTest');
   if (stop) stop.disabled = !ledTestSequenceAbort;
 }
 
 async function testSingleLed(index) {
   if (!state.connected) { toast('Conecte o ESP32 antes de testar um LED.'); return; }
-  if (!state.firmwareFeatures.includes('LED_TEST')) { toast('O firmware atual não reconhece LED_TEST. Atualize para o firmware privado 0.5.0.'); return; }
+  if (!state.firmwareFeatures.includes('LED_TEST')) { toast('O firmware atual não reconhece LED_TEST. Atualize para o firmware privado Voyage Core 0.5.1.'); return; }
   selectedLedIndex = index;
   renderLedMapping();
   await sendCommand(makeLedTestCommand(index));
@@ -821,7 +950,7 @@ const wait = (ms) => new Promise((resolve) => window.setTimeout(resolve, ms));
 
 async function startLedTestSequence() {
   if (!state.connected) { toast('Conecte o ESP32 antes de iniciar a sequência.'); return; }
-  if (!state.firmwareFeatures.includes('LED_TEST')) { toast('A sequência individual requer o firmware 0.5.0.'); return; }
+  if (!state.firmwareFeatures.includes('LED_TEST')) { toast('A sequência individual requer o firmware Voyage Core 0.5.1.'); return; }
   ledTestSequenceAbort = true;
   updateLedFirmwareStatus();
   for (let index = 1; index <= state.ledMap.length; index++) {
@@ -1006,6 +1135,7 @@ $('#launchCamera').addEventListener('click', launchCameraApp);
 $('#exportSupport').addEventListener('click', exportSupportPackage);
 $('#saveLedMap').addEventListener('click', () => { saveLedMapConfig(); renderLedLightingMarkers(); toast('Mapeamento dos LEDs salvo.'); });
 $('#lightingLedMarkers').addEventListener('click', (event) => { const marker = event.target.closest('[data-select-led]'); if (marker) { selectedLedIndex = Number(marker.dataset.selectLed); setView('developer'); renderLedMapping(); } });
+$('#ambientCabinLedMarkers').addEventListener('click', (event) => { const marker = event.target.closest('[data-select-led]'); if (marker) { selectedLedIndex = Number(marker.dataset.selectLed); setView('developer'); renderLedMapping(); } });
 $('#startLedSequence').addEventListener('click', startLedTestSequence);
 $('#stopLedTest').addEventListener('click', stopLedTestSequence);
 $('#ledMapList').addEventListener('click', (event) => { const button = event.target.closest('[data-select-led]'); if (button) { selectedLedIndex = Number(button.dataset.selectLed); renderLedMapping(); } });

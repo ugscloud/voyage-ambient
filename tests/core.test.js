@@ -220,7 +220,7 @@ test('iluminação contém cenas Voyage, efeitos BLE suportados e configuração
   assert.match(main, /id="frontZoneColor"/);
   assert.match(main, /id="rearZoneColor"/);
   assert.match(main, /id="syncZoneColors"/);
-  assert.match(main, /O firmware atual ainda envia uma cor única|firmware 0\.5\.0/);
+  assert.match(main, /Voyage Core 0\.5\.1/);
 });
 
 test('preferências de cor dianteira e traseira permanecem salvas na configuração', () => {
@@ -253,7 +253,7 @@ test('controles de efeito ativos correspondem somente ao firmware BLE atual', ()
   const activeEffects = [...main.matchAll(/data-effect=\"([A-Z_]+)\"/g)].map((match) => match[1]);
   assert.deepEqual(activeEffects, ['SOLID', 'BREATHE', 'RAINBOW']);
   assert.match(main, /Próximos efeitos/);
-  assert.match(main, /O firmware atual ainda envia uma cor única para os cinco LEDs/);
+  assert.match(main, /As cores e posições ficam salvas no aplicativo/);
 });
 
 
@@ -311,14 +311,15 @@ test('cada cena de iluminação possui fotografia própria', async () => {
 });
 
 
-test('manifesto público do firmware 0.5.0 descreve UUIDs, teste e cor por pixel', () => {
-  const manifest = readFileSync(new URL('../firmware/esp32/FIRMWARE-0.5.0-MANIFEST.md', import.meta.url), 'utf8');
+test('manifesto público do firmware 0.5.1 descreve UUIDs, teste, cor por pixel e persistência', () => {
+  const manifest = readFileSync(new URL('../firmware/esp32/FIRMWARE-0.5.1-MANIFEST.md', import.meta.url), 'utf8');
   assert.match(manifest, /7b9e0001-7a3d-4f5b-9c2a-6e1d0a5b0001/);
   assert.match(manifest, /7b9e0002-7a3d-4f5b-9c2a-6e1d0a5b0001/);
   assert.match(manifest, /LED_TEST=1/);
   assert.match(manifest, /LC=índice,r,g,b/);
-  assert.match(manifest, /INFO=0\.5\.0,5,LT,LC/);
-  assert.match(manifest, /Quantidade de pixels endereçáveis no hardware inicial: 5/);
+  assert.match(manifest, /INFO=0\.5\.1,5,LT,LC/);
+  assert.match(manifest, /Preferences\/NVS/);
+  assert.match(manifest, /Pixels endereçáveis: 5/);
 });
 
 test('as imagens de cabine usadas em marcação são importadas pelo pipeline Vite', () => {
@@ -327,17 +328,92 @@ test('as imagens de cabine usadas em marcação são importadas pelo pipeline Vi
   assert.match(main, /src="\$\{cabinImageUrl\}"/);
 });
 
-test('firmware 0.5.0 anuncia recursos BLE em pacote curto e comando LC cabe no MTU padrão', () => {
-  const manifest = readFileSync(new URL('../firmware/esp32/FIRMWARE-0.5.0-MANIFEST.md', import.meta.url), 'utf8');
-  assert.match(manifest, /INFO=0\.5\.0,5,LT,LC/);
+test('firmware 0.5.1 anuncia recursos BLE em pacote curto e comando LC cabe no MTU padrão', () => {
+  const manifest = readFileSync(new URL('../firmware/esp32/FIRMWARE-0.5.1-MANIFEST.md', import.meta.url), 'utf8');
+  assert.match(manifest, /INFO=0\.5\.1,5,LT,LC/);
+  assert.match(manifest, /Preferences\/NVS/);
   assert.ok(makeLedColorCommand(5, '#ffffff').length <= 20);
 });
 
 
-test('detecção do firmware reconhece recursos curtos do pacote BLE 0.5.0', () => {
-  const info = parseFirmwareInfo('INFO=0.5.0,5,LT,LC');
-  assert.equal(info.version, '0.5.0');
+test('detecção do firmware reconhece recursos curtos do pacote BLE 0.5.1', () => {
+  const info = parseFirmwareInfo('INFO=0.5.1,5,LT,LC');
+  assert.equal(info.version, '0.5.1');
   assert.equal(info.ledCount, 5);
   assert.deepEqual(info.features, ['LED_TEST', 'LED_COLOR']);
   assert.equal(parseFirmwareInfo('CONNECTED'), null);
+});
+
+
+test('editor de LEDs alimenta a prévia Ambiente, Zonas e Modo Desenvolvedor', () => {
+  const main = readFileSync(new URL('../src/main.js', import.meta.url), 'utf8');
+  assert.match(main, /id=\"ambientCabinLedMarkers\"/);
+  assert.match(main, /function renderLedLightingMarkers\(\)/);
+  assert.match(main, /ambientCabinLedMarkers/);
+  assert.match(main, /function renderLightingVisuals\(\)/);
+  assert.match(main, /function syncZoneControlsFromMap\(zone\)/);
+  assert.match(main, /saveLedMapConfig\(\);[\s\S]{0,220}renderLedLightingMarkers\(\);[\s\S]{0,100}renderLightingVisuals\(\);/);
+});
+
+test('cada modo troca a imagem da cabine na tela Ambiente, Zonas e no mapa do desenvolvedor', () => {
+  const main = readFileSync(new URL('../src/main.js', import.meta.url), 'utf8');
+  assert.match(main, /CABIN_SCENE_IMAGES/);
+  assert.match(main, /function updateSceneCabinImages\(\)/);
+  assert.match(main, /ambientZonePhoto/);
+  assert.match(main, /ledMapPhoto/);
+  assert.match(main, /cabinPanel\.style\.backgroundImage/);
+  for (const name of ['flora','sport','sport-pulse','moonlight','ocean','aurora','sunset','relax']) {
+    assert.ok(existsSync(new URL(`../src/themes/land-rover/interiors/${name}.webp`, import.meta.url)));
+  }
+});
+
+test('animações visuais seguem o efeito e o estado de energia em todas as prévias de LED', () => {
+  const css = readFileSync(new URL('../src/themes/land-rover/experience.css', import.meta.url), 'utf8');
+  assert.match(css, /data-effect=\"BREATHE\"/);
+  assert.match(css, /data-effect=\"RAINBOW\"/);
+  assert.match(css, /voyage-led-breathe/);
+  assert.match(css, /voyage-led-spectrum/);
+  assert.match(css, /ambient-live-led\.is-muted/);
+});
+
+test('firmware pareado mantém os UUIDs, cinco pixels e grava preferências na NVS', () => {
+  const firmware = readFileSync(new URL('../firmware/esp32/private/VoyageAmbientBLE_FW_0_5_1.ino', import.meta.url), 'utf8');
+  assert.match(firmware, /SERVICE_UUID/);
+  assert.match(firmware, /CHARACTERISTIC_UUID/);
+  assert.match(firmware, /#define NUM_LEDS 5/);
+  assert.match(firmware, /Preferences/);
+  assert.match(firmware, /saveConfigNow/);
+  assert.match(firmware, /LED_TEST=/);
+  assert.match(firmware, /LC=/);
+  assert.match(firmware, /INFO=/);
+});
+
+test('cartões de cenas usam fotografias próprias e coerentes com cada tema', () => {
+  const css = readFileSync(new URL('../src/themes/land-rover/experience.css', import.meta.url), 'utf8');
+  for (const name of ['flora','sport','sport-pulse','moonlight','ocean','aurora','sunset','relax']) {
+    assert.match(css, new RegExp(`ambient-theme-card\\.theme-${name}:before`));
+    assert.match(css, new RegExp(`url\\('./scenes/${name}\\.webp'\\)`));
+  }
+});
+
+test('prévia visual aplica brilho global, intensidade por LED e duração do efeito', () => {
+  const main = readFileSync(new URL('../src/main.js', import.meta.url), 'utf8');
+  const css = readFileSync(new URL('../src/themes/land-rover/experience.css', import.meta.url), 'utf8');
+  assert.match(main, /led\.opacity \/ 100\) \* \(state\.brightness \/ 100\)/);
+  assert.match(main, /--led-animation-duration/);
+  assert.match(css, /var\(--led-animation-duration/);
+});
+
+test('mudar um LED de zona sincroniza o resumo da zona antiga e da nova', () => {
+  const main = readFileSync(new URL('../src/main.js', import.meta.url), 'utf8');
+  assert.match(main, /const previousZone = led\.zone/);
+  assert.match(main, /if \(previousZone === 'front' \|\| previousZone === 'rear'\) syncZoneControlsFromMap\(previousZone\)/);
+  assert.match(main, /if \(led\.zone === 'front' \|\| led\.zone === 'rear'\) syncZoneControlsFromMap\(led\.zone\)/);
+});
+
+
+test('efeito Arco-íris do firmware acompanha a faixa de velocidade exibida na interface', () => {
+  const firmware = readFileSync(new URL('../firmware/esp32/private/VoyageAmbientBLE_FW_0_5_1.ino', import.meta.url), 'utf8');
+  assert.match(firmware, /rainbowPeriod = .*map\(speedValue, 1, 100, 6500, 1000\)/);
+  assert.match(firmware, /hueStep = \(65536UL \* interval\) \/ rainbowPeriod/);
 });
