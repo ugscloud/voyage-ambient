@@ -2,7 +2,7 @@ import { createDefaultLedMap, normalizeLedMap } from './led-mapping.js';
 
 export const CONFIG_KEY = 'voyage-ambient-config-v2';
 export const LEGACY_KEY = 'voyage-ambient-settings-v1';
-export const CONFIG_SCHEMA_VERSION = 3;
+export const CONFIG_SCHEMA_VERSION = 4;
 
 const relayOutputs = Array.from({ length: 5 }, (_, index) => ({
   id: `relay-${index + 1}`,
@@ -27,6 +27,12 @@ export function createDefaultConfig() {
       speed: 45,
       profile: 'MOONLIGHT',
       zones: { front: '#91B4D8', rear: '#91B4D8', linked: true },
+      areaColors: {
+        'driver-seat': '#91B4D8', 'passenger-seat': '#91B4D8',
+        'rear-left-seat': '#91B4D8', 'rear-right-seat': '#91B4D8',
+        dashboard: '#91B4D8', 'front-doors': '#91B4D8', 'rear-doors': '#91B4D8',
+        'front-footwell': '#91B4D8', 'rear-footwell': '#91B4D8', 'center-console': '#91B4D8', trunk: '#91B4D8',
+      },
       ledMap: createDefaultLedMap(),
     },
     camera: { frontPackage: '', rearPackage: '', showFrontIn3d: false, showRearIn3d: false },
@@ -38,7 +44,7 @@ export function createDefaultConfig() {
       {
         id: 'ambient-led-chain', type: 'lighting-rgb', name: 'Iluminação ambiente',
         installed: true, state: 'working', transport: 'ble-legacy', ledCount: 5,
-        note: 'Cinco LEDs WS2812B sincronizados no GPIO 12. Não há zonas independentes ainda.',
+        note: 'Cinco pixels WS2812B em cadeia no GPIO 12. O firmware Voyage Core 0.5.2 habilita cor e efeitos por pixel; a atribuição de áreas é configurada no aplicativo.',
       },
       {
         id: 'relay-5-template', type: 'relay-output', name: 'Módulo de 5 relés',
@@ -59,6 +65,12 @@ function safeParse(value) {
 
 function mergeKnownConfig(defaults, saved) {
   if (!saved || typeof saved !== 'object') return defaults;
+  const ledMap = normalizeLedMap(saved.lighting?.ledMap || defaults.lighting.ledMap);
+  const areaColors = { ...defaults.lighting.areaColors, ...(saved.lighting?.areaColors || {}) };
+  // Migração de configurações 0.4.0 anteriores: transfere a cor de cada LED para sua nova área lógica.
+  if (!saved.lighting?.areaColors) {
+    ledMap.forEach((item) => { areaColors[item.area] = item.color; });
+  }
   return {
     ...defaults,
     ...saved,
@@ -68,7 +80,8 @@ function mergeKnownConfig(defaults, saved) {
     lighting: {
       ...defaults.lighting, ...(saved.lighting || {}),
       zones: { ...defaults.lighting.zones, ...(saved.lighting?.zones || {}) },
-      ledMap: normalizeLedMap(saved.lighting?.ledMap || defaults.lighting.ledMap),
+      areaColors,
+      ledMap,
     },
     camera: { ...defaults.camera, ...(saved.camera || {}) },
     modules: Array.isArray(saved.modules) ? saved.modules : defaults.modules,

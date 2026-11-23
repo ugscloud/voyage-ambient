@@ -8,22 +8,8 @@ import { createRelayModuleTemplate, normalizeOutput } from './core/module-regist
 import { createAutomationDraft } from './core/automation-store.js';
 import { saveAsset, listAssets, deleteAsset } from './core/asset-library.js';
 import { exportConfiguration, exportDeveloperPackage } from './core/developer-tools.js';
-import { normalizeLedMap, makeLedTestCommand, makeLedColorCommand, parseFirmwareInfo } from './core/led-mapping.js';
-import cabinImageUrl from './themes/land-rover/land-rover-cabin.webp';
-import floraCabinUrl from './themes/land-rover/interiors/flora.webp';
-import sportCabinUrl from './themes/land-rover/interiors/sport.webp';
-import sportPulseCabinUrl from './themes/land-rover/interiors/sport-pulse.webp';
-import moonlightCabinUrl from './themes/land-rover/interiors/moonlight.webp';
-import oceanCabinUrl from './themes/land-rover/interiors/ocean.webp';
-import auroraCabinUrl from './themes/land-rover/interiors/aurora.webp';
-import sunsetCabinUrl from './themes/land-rover/interiors/sunset.webp';
-import relaxCabinUrl from './themes/land-rover/interiors/relax.webp';
-
-const CABIN_SCENE_IMAGES = {
-  flora: floraCabinUrl, sport: sportCabinUrl, 'sport-pulse': sportPulseCabinUrl,
-  moonlight: moonlightCabinUrl, ocean: oceanCabinUrl, aurora: auroraCabinUrl,
-  sunset: sunsetCabinUrl, relax: relaxCabinUrl,
-};
+import { normalizeLedMap, makeLedTestCommand, makeLedColorCommand, parseFirmwareInfo, LED_AREAS, getLedArea, getLedAreaLabel } from './core/led-mapping.js';
+import zoneMapNeutralUrl from './themes/land-rover/zone-map-neutral.webp';
 
 // A configuração é única e versionada. A migração preserva as preferências da versão anterior.
 let appConfig = loadConfig();
@@ -46,9 +32,9 @@ const PALETTE = [
 const MOODS = [
   { id: 'flora', name: 'FLORA', subtitle: 'Verde natural e sereno', color: '#37D67A', frontColor: '#36D67A', rearColor: '#83F0A9', brightness: 72, effect: 'BREATHE' },
   { id: 'sport', name: 'SPORT', subtitle: 'Vermelho intenso', color: '#FF0000', frontColor: '#FF0000', rearColor: '#D90018', brightness: 92, effect: 'SOLID' },
-  { id: 'sport-pulse', name: 'SPORT PULSE', subtitle: 'Pulso vermelho suave', color: '#FF1A1A', frontColor: '#FF1A1A', rearColor: '#980018', brightness: 88, effect: 'BREATHE' },
+  { id: 'sport-pulse', name: 'SPORT PULSE', subtitle: 'Pulso vermelho suave', color: '#FF1A1A', frontColor: '#FF1A1A', rearColor: '#980018', brightness: 88, effect: 'PULSE' },
   { id: 'moonlight', name: 'MOONLIGHT', subtitle: 'Azul frio e sofisticado', color: '#91B4D8', frontColor: '#91B4D8', rearColor: '#517CB2', brightness: 68, effect: 'SOLID' },
-  { id: 'ocean', name: 'OCEAN', subtitle: 'Azul oceânico', color: '#00BBD4', frontColor: '#00BBD4', rearColor: '#007F9F', brightness: 74, effect: 'BREATHE' },
+  { id: 'ocean', name: 'OCEAN', subtitle: 'Azul oceânico', color: '#00BBD4', frontColor: '#00BBD4', rearColor: '#007F9F', brightness: 74, effect: 'WAVE' },
   { id: 'aurora', name: 'AURORA', subtitle: 'Ciclo cromático imersivo', color: '#8E5BFF', frontColor: '#8E5BFF', rearColor: '#13C6D8', brightness: 72, effect: 'RAINBOW' },
   { id: 'sunset', name: 'SUNSET', subtitle: 'Âmbar e pôr do sol', color: '#FF8A42', frontColor: '#FF8A42', rearColor: '#FFC16C', brightness: 70, effect: 'BREATHE' },
   { id: 'relax', name: 'RELAX', subtitle: 'Branco quente e conforto', color: '#FFD6A0', frontColor: '#FFD6A0', rearColor: '#F4E4CD', brightness: 54, effect: 'BREATHE' },
@@ -69,6 +55,7 @@ function loadSavedState() {
       rear: appConfig.lighting.zones?.rear || appConfig.lighting.color || '#91B4D8',
       linked: Boolean(appConfig.lighting.zones?.linked ?? true),
     },
+    areaColors: { ...(appConfig.lighting.areaColors || {}) },
     cameraPackage: appConfig.camera.frontPackage || '',
     ledMap: normalizeLedMap(appConfig.lighting.ledMap),
     firmwareVersion: 'Não identificado',
@@ -79,6 +66,7 @@ function loadSavedState() {
 
 const state = loadSavedState();
 state.zones ||= { front: state.color, rear: state.color, linked: true };
+for (const area of LED_AREAS) state.areaColors[area.id] ||= area.group === 'rear' ? (state.zones.rear || state.color) : area.group === 'trunk' ? state.color : (state.zones.front || state.color);
 let bleClient;
 let toastTimer;
 let selectedLedIndex = 1;
@@ -208,24 +196,33 @@ app.innerHTML = `
               </section>
 
               <section class="ambient-tab-panel" id="lighting-panel-zonas" data-light-panel="zonas" hidden>
-                <div class="ambient-panel-heading"><div><span class="eyebrow">PERSONALIZAÇÃO POR ÁREA</span><h2>Zonas de iluminação</h2><p>Defina uma cor para a frente e outra para a traseira.</p></div><span class="panel-counter">2 ZONAS</span></div>
-                <div class="ambient-zone-preview led-zone-preview"><img class="ambient-zone-photo" id="ambientZonePhoto" src="${cabinImageUrl}" alt="Interior do veículo visto da cabine"/><div class="ambient-zone-photo-shade"></div><div class="led-zone-markers" id="lightingLedMarkers" aria-label="Posições configuradas dos LEDs"></div><div class="ambient-zone-preview-caption"><span>MAPA DE ILUMINAÇÃO DO HABITÁCULO</span><small>PRÉVIA CONFIGURÁVEL</small></div></div>
+                <div class="ambient-panel-heading"><div><span class="eyebrow">PERSONALIZAÇÃO POR ÁREA</span><h2>Zonas de iluminação</h2><p>Atribua cor a cada banco, porta, painel, região dos pés ou porta-malas.</p></div><span class="panel-counter">5 PIXELS • ÁREAS EDITÁVEIS</span></div>
+                <div class="ambient-zone-preview led-zone-preview"><img class="ambient-zone-photo" id="ambientZonePhoto" src="${zoneMapNeutralUrl}" alt="Interior neutro do veículo para posicionar os LEDs"/><div class="ambient-zone-photo-shade"></div><div class="led-zone-markers" id="lightingLedMarkers" aria-label="Posições configuradas dos LEDs"></div><div class="ambient-zone-preview-caption"><span>POSIÇÃO DOS LEDS NO HABITÁCULO</span><small>PONTOS NUMERADOS</small></div></div>
                 <div class="ambient-zone-controls">
                   <article class="ambient-zone-control"><div class="ambient-zone-top"><span class="zone-index">01</span><div><b>Dianteira</b><small>Motorista e passageiro</small></div><span class="zone-swatch" id="frontZoneSwatch"></span></div><div class="ambient-zone-input-row"><label for="frontZoneColor">Cor dianteira</label><input id="frontZoneColor" type="color" value="#91B4D8"/><strong id="frontZoneHex">#91B4D8</strong></div></article>
                   <article class="ambient-zone-control"><div class="ambient-zone-top"><span class="zone-index">02</span><div><b>Traseira</b><small>Banco traseiro</small></div><span class="zone-swatch" id="rearZoneSwatch"></span></div><div class="ambient-zone-input-row"><label for="rearZoneColor">Cor traseira</label><input id="rearZoneColor" type="color" value="#91B4D8"/><strong id="rearZoneHex">#91B4D8</strong></div></article>
                 </div>
-                <div class="ambient-zone-footer"><button class="ambient-inline-action" id="syncZoneColors" type="button">⛓ UNIFICAR CORES</button><p id="zoneFirmwareNote">As cores por zona são salvas no aplicativo. O firmware atual ainda envia uma cor única para os cinco LEDs; o firmware Voyage Core 0.5.1 habilita o controle por pixel e a gravação das preferências no controlador.</p></div>
-                <div class="lighting-led-summary"><div><b>Mapeamento físico dos LEDs</b><small>Configure a posição e o nome de cada ponto no Modo Desenvolvedor.</small></div><button class="ambient-inline-action" type="button" data-go="developer">ABRIR MAPEAMENTO ↗</button></div>
+                <div class="ambient-area-color-section">
+                  <div class="ambient-panel-subhead"><b>Cores por área do veículo</b><small>ASSOCIE CORES AOS PONTOS MAPEADOS</small></div>
+                  <div class="ambient-area-color-grid" id="ledAreaColorGrid"></div>
+                </div>
+                <div class="ambient-zone-footer"><button class="ambient-inline-action" id="syncZoneColors" type="button">⛓ UNIFICAR TODAS AS CORES</button><p id="zoneFirmwareNote">As cores por área ficam salvas no aplicativo. Para aplicar cada cor ao pixel físico, conecte o Voyage Core compatível.</p></div>
+                <div class="lighting-led-summary"><div><b>Mapeamento físico dos LEDs</b><small>Cada ponto é numerado e pode ser reatribuído a uma área no Modo Desenvolvedor.</small></div><button class="ambient-inline-action" type="button" data-go="developer">ABRIR MAPEAMENTO ↗</button></div>
               </section>
 
               <section class="ambient-tab-panel" id="lighting-panel-efeitos" data-light-panel="efeitos" hidden>
-                <div class="ambient-panel-heading"><div><span class="eyebrow">MOVIMENTO DA ILUMINAÇÃO</span><h2>Efeitos de luz</h2><p>Escolha como a cor se comporta no habitáculo.</p></div><span class="panel-counter">3 ATIVOS</span></div>
-                <div class="ambient-effects-grid">
+                <div class="ambient-panel-heading"><div><span class="eyebrow">MOVIMENTO DA ILUMINAÇÃO</span><h2>Efeitos de luz</h2><p>Escolha como a cor se comporta no habitáculo.</p></div><span class="panel-counter">8 EFEITOS</span></div>
+                <div class="ambient-effects-grid ambient-effects-grid-expanded">
                   <button class="effect-button active" data-effect="SOLID" type="button"><span class="effect-visual effect-static"></span><b>Estático</b><small>Cor contínua</small></button>
-                  <button class="effect-button" data-effect="BREATHE" type="button"><span class="effect-visual effect-breathe"></span><b>Respiração</b><small>Brilho suave</small></button>
+                  <button class="effect-button" data-effect="BREATHE" type="button"><span class="effect-visual effect-breathe"></span><b>Respiração</b><small>Fade suave</small></button>
+                  <button class="effect-button" data-effect="PULSE" type="button"><span class="effect-visual effect-pulse"></span><b>Pulso</b><small>Pulsação suave</small></button>
+                  <button class="effect-button" data-effect="WAVE" type="button"><span class="effect-visual effect-wave"></span><b>Onda</b><small>Brilho percorre os LEDs</small></button>
+                  <button class="effect-button" data-effect="CHASE" type="button"><span class="effect-visual effect-chase"></span><b>Cometa</b><small>Sequência com rastro</small></button>
+                  <button class="effect-button" data-effect="CASCADE" type="button"><span class="effect-visual effect-cascade"></span><b>Cascata</b><small>Fluxo sequencial suave</small></button>
+                  <button class="effect-button" data-effect="TWINKLE" type="button"><span class="effect-visual effect-twinkle"></span><b>Cintilante</b><small>Pontos de brilho suaves</small></button>
                   <button class="effect-button" data-effect="RAINBOW" type="button"><span class="effect-visual effect-spectrum"></span><b>Arco-íris</b><small>Ciclo de cores</small></button>
                 </div>
-                <div class="ambient-future-effects"><div class="ambient-panel-subhead"><b>Próximos efeitos</b><small>DISPONÍVEIS APÓS ATUALIZAÇÃO DO CONTROLADOR</small></div><div class="future-effect-list"><span>Onda</span><span>Cometa</span><span>Ritmo da música</span><span>Cascata</span><span>Sequencial</span></div></div>
+                <p class="ambient-effect-support-note" id="effectSupportNote">Os efeitos físicos são habilitados conforme os recursos informados pelo controlador.</p>
                 <div class="ambient-effect-speed"><div class="range-heading"><label for="speed">Velocidade do efeito</label><strong id="speedValue">45%</strong></div><input class="range premium-range" type="range" id="speed" min="1" max="100" value="45"/><div class="range-ends"><span>Gradual</span><span>Rápido</span></div></div>
               </section>
             </div>
@@ -306,10 +303,10 @@ app.innerHTML = `
             <div class="dev-section-heading"><div><span class="eyebrow">ILUMINAÇÃO • HARDWARE</span><h2>Editor de zonas e mapeamento dos LEDs</h2><p>Associe cada pixel físico a uma posição do carro. Arraste os pontos sobre a imagem para ajustar o local.</p></div><span class="count-label" id="ledFirmwareBadge">FIRMWARE LEGADO</span></div>
             <div class="led-map-layout">
               <div class="led-map-stage" id="ledMapStage">
-                <img id="ledMapPhoto" src="${cabinImageUrl}" alt="Interior do veículo para mapear os LEDs" draggable="false"/>
+                <img id="ledMapPhoto" src="${zoneMapNeutralUrl}" alt="Interior neutro do veículo para mapear os LEDs" draggable="false"/>
                 <div class="led-map-shade"></div>
                 <div class="led-map-markers" id="ledMapMarkers"></div>
-                <div class="led-map-stage-label"><span>VISTA DO HABITÁCULO</span><small>SELECIONE OU ARRASTE UM PONTO</small></div>
+                <div class="led-map-stage-label"><span>MAPA NEUTRO DO HABITÁCULO • SEM LUZES ACESAS</span><small>ARRASTE OS MARCADORES NUMERADOS</small></div>
               </div>
               <div class="led-map-side">
                 <div class="led-map-list-head"><b>LEDs reconhecidos</b><small>5 CANAIS FÍSICOS</small></div>
@@ -320,9 +317,9 @@ app.innerHTML = `
             <div class="led-tester-panel">
               <div class="led-tester-head"><div><b>Testador de LEDs</b><small>Identifique fisicamente cada fita ou ponto antes de nomear.</small></div><div class="led-tester-actions"><button class="secondary-button" id="startLedSequence" type="button">TESTAR EM SEQUÊNCIA</button><button class="secondary-button" id="stopLedTest" type="button" disabled>PARAR</button></div></div>
               <div class="led-tester-list" id="ledTesterList"></div>
-              <p class="small-note" id="ledTesterStatus">O teste físico individual requer o firmware Voyage Core 0.5.1. Com o firmware atual, os cinco LEDs ainda acendem juntos.</p>
+              <p class="small-note" id="ledTesterStatus">O teste físico individual requer o firmware Voyage Core 0.5.2. Com o firmware atual, os cinco LEDs ainda acendem juntos.</p>
             </div>
-            <div class="led-map-save-row"><span>As posições e nomes ficam salvos na configuração deste navegador e entram no pacote de exportação do desenvolvedor.</span><button class="primary-button" id="saveLedMap" type="button">SALVAR MAPEAMENTO</button></div>
+            <div class="led-map-save-row"><span>Cada LED é um pixel físico da cadeia. Você pode renomear, reatribuir e posicionar os pontos; as alterações ficam no backup do desenvolvedor.</span><button class="primary-button" id="saveLedMap" type="button">SALVAR MAPEAMENTO</button></div>
           </article>
 
           <article class="pivi-panel dev-card dev-wide">
@@ -376,6 +373,47 @@ app.innerHTML = `
 const $ = (selector) => document.querySelector(selector);
 const $$ = (selector) => [...document.querySelectorAll(selector)];
 
+function enableHorizontalDrag(element) {
+  if (!element || element.dataset.dragScrollReady === 'true') return;
+  element.dataset.dragScrollReady = 'true';
+  let startX = 0;
+  let startScroll = 0;
+  let moved = false;
+  element.addEventListener('pointerdown', (event) => {
+    if (event.pointerType === 'mouse' && event.button !== 0) return;
+    startX = event.clientX;
+    startScroll = element.scrollLeft;
+    moved = false;
+  });
+  element.addEventListener('pointermove', (event) => {
+    if (!event.buttons && event.pointerType === 'mouse') return;
+    const delta = event.clientX - startX;
+    if (Math.abs(delta) > 6) {
+      moved = true;
+      element.classList.add('is-dragging');
+      element.scrollLeft = startScroll - delta;
+      event.preventDefault();
+    }
+  });
+  const finish = () => {
+    if (moved) {
+      element.dataset.draggedAt = String(Date.now());
+      element.classList.remove('is-dragging');
+    }
+    moved = false;
+  };
+  element.addEventListener('pointerup', finish);
+  element.addEventListener('pointercancel', finish);
+  element.addEventListener('click', (event) => {
+    const draggedAt = Number(element.dataset.draggedAt || 0);
+    if (draggedAt && Date.now() - draggedAt < 350) {
+      event.preventDefault();
+      event.stopPropagation();
+      element.dataset.draggedAt = '0';
+    }
+  }, true);
+}
+
 function toast(message) {
   const element = $('#toast');
   element.textContent = message;
@@ -398,10 +436,13 @@ bleClient = new VoyageBleClient({
       state.firmwareVersion = firmwareInfo.version;
       state.firmwareLedCount = firmwareInfo.ledCount;
       state.firmwareFeatures = firmwareInfo.features;
-      updateLedFirmwareStatus();
-      if (state.firmwareFeatures.includes('LED_COLOR')) {
-        for (const item of state.ledMap) await sendCommand(makeLedColorCommand(item.index, item.color));
+      if (!state.firmwareFeatures.includes('EFFECTS') && ['PULSE', 'WAVE', 'CHASE', 'CASCADE', 'TWINKLE'].includes(state.effect)) {
+        state.effect = 'SOLID';
+        saveState();
+        toast('Este firmware não suporta os efeitos avançados. O modo Estático foi selecionado.');
       }
+      updateLedFirmwareStatus();
+      await sendCurrentState();
       toast(`Controlador identificado: firmware ${state.firmwareVersion}.`);
       return;
     }
@@ -428,7 +469,7 @@ function saveState() {
   const result = updateConfig(appConfig, {
     lighting: {
       powered: state.powered, color: state.color, brightness: state.brightness,
-      effect: state.effect, speed: state.speed, profile: state.profile, sceneId: state.sceneId, zones: { ...state.zones }, ledMap: normalizeLedMap(state.ledMap),
+      effect: state.effect, speed: state.speed, profile: state.profile, sceneId: state.sceneId, zones: { ...state.zones }, areaColors: { ...state.areaColors }, ledMap: normalizeLedMap(state.ledMap),
     },
     camera: { frontPackage: state.cameraPackage },
   });
@@ -458,9 +499,11 @@ function render() {
   if ($('#zoneFirmwareNote')) {
     $('#zoneFirmwareNote').dataset.linked = state.zones.linked ? 'true' : 'false';
     $('#zoneFirmwareNote').textContent = state.firmwareFeatures.includes('LED_COLOR')
-      ? `Voyage Core ${state.firmwareVersion}: controle individual por pixel ativo. As cores dianteira e traseira seguem o mapeamento salvo.`
-      : 'As cores e posições ficam salvas no aplicativo. Para aplicar cores e testes individualmente nos cinco pixels, conecte o Voyage Core 0.5.1.';
+      ? `Voyage Core ${state.firmwareVersion}: cores individuais por pixel ativas. Cada área usa os LEDs associados no mapeamento.`
+      : 'As cores e posições ficam salvas no aplicativo. Para aplicar cores individuais e testar os cinco pixels, conecte o Voyage Core 0.5.2.';
   }
+  if ($('#effectSupportNote')) $('#effectSupportNote').textContent = state.firmwareFeatures.includes('EFFECTS') ? `Voyage Core ${state.firmwareVersion}: oito modos de iluminação reconhecidos.` : 'Os novos efeitos físicos precisam do firmware Voyage Core 0.5.2. A prévia visual funciona enquanto isso.';
+  if ($('#ledAreaColorGrid') && document.activeElement?.dataset?.areaColor === undefined) renderLedAreaControls();
   if ($('#homeBrightness')) $('#homeBrightness').textContent = `${state.brightness}%`;
   if ($('#homePowerText')) $('#homePowerText').textContent = state.powered ? 'SISTEMA LIGADO' : 'SISTEMA DESLIGADO';
   if ($('#homeColorDot')) $('#homeColorDot').style.background = color;
@@ -539,7 +582,8 @@ async function sendCurrentState() {
   await sendCommand(`POWER=${state.powered ? 1 : 0}`);
   await sendCommand(`COLOR=${r},${g},${b}`);
   await sendCommand(`BRIGHTNESS=${state.brightness}`);
-  await sendCommand(`EFFECT=${state.effect}`);
+  const advancedEffect = ['PULSE', 'WAVE', 'CHASE', 'CASCADE', 'TWINKLE'].includes(state.effect);
+  await sendCommand(`EFFECT=${advancedEffect && !state.firmwareFeatures.includes('EFFECTS') ? 'SOLID' : state.effect}`);
   await sendCommand(`SPEED=${state.speed}`);
   if (state.firmwareFeatures.includes('LED_COLOR')) {
     for (const item of normalizeLedMap(state.ledMap)) await sendCommand(makeLedColorCommand(item.index, item.color));
@@ -551,6 +595,7 @@ function setColor(color, name = colorName(color)) {
   state.profile = name.toUpperCase();
   if (state.zones.linked) {
     state.zones = { ...state.zones, front: state.color, rear: state.color };
+    state.areaColors = Object.fromEntries(LED_AREAS.map((area) => [area.id, state.color]));
     state.ledMap = normalizeLedMap(state.ledMap).map((item) => ({ ...item, color: state.color }));
   }
   saveState(); render();
@@ -564,19 +609,34 @@ function setColor(color, name = colorName(color)) {
 function setZoneColor(zone, color) {
   if (!['front', 'rear'].includes(zone)) return;
   state.zones = { ...state.zones, [zone]: color.toLowerCase(), linked: false };
+  for (const area of LED_AREAS.filter((item) => item.group === zone)) state.areaColors[area.id] = color.toLowerCase();
   state.ledMap = normalizeLedMap(state.ledMap).map((item) => item.zone === zone ? { ...item, color: color.toLowerCase() } : item);
   document.documentElement.style.setProperty(zone === 'front' ? '--front-zone' : '--rear-zone', color.toLowerCase());
   saveState();
   syncZoneControlsFromMap(zone);
+  renderLedAreaControls();
   renderLedLightingMarkers();
   renderLightingVisuals();
-  const capable = state.firmwareFeatures.includes('LED_COLOR');
+  const capable = state.connected && state.firmwareFeatures.includes('LED_COLOR');
   if (capable) {
     state.ledMap.filter((item) => item.zone === zone).forEach((item) => sendCommand(makeLedColorCommand(item.index, item.color)));
     toast(`Cor ${color.toUpperCase()} aplicada aos ${state.ledMap.filter((item) => item.zone === zone).length} pixel(is) da zona ${zone === 'front' ? 'dianteira' : 'traseira'}.`);
   } else {
-    toast('Cor salva no aplicativo. Para aplicar por pixel, conecte o Voyage Core 0.5.1.');
+    toast('Cor salva no aplicativo. Conecte o Voyage Core 0.5.2 para aplicar por pixel.');
   }
+}
+
+function applyEffect(effect) {
+  const advanced = ['PULSE', 'WAVE', 'CHASE', 'CASCADE', 'TWINKLE'].includes(effect);
+  if (advanced && state.connected && !state.firmwareFeatures.includes('EFFECTS')) {
+    toast('Este controlador ainda não informa suporte aos efeitos avançados. Atualize para o Voyage Core 0.5.2.');
+    return;
+  }
+  state.effect = effect;
+  saveState();
+  render();
+  if (!state.connected || !advanced || state.firmwareFeatures.includes('EFFECTS')) sendCommand(`EFFECT=${effect}`);
+  toast(`Efeito ${({ SOLID: 'Estático', BREATHE: 'Respiração', PULSE: 'Pulso', WAVE: 'Onda', CHASE: 'Cometa', CASCADE: 'Cascata', TWINKLE: 'Cintilante', RAINBOW: 'Arco-íris' })[effect] || effect} selecionado.`);
 }
 
 function setPower(powered) {
@@ -594,11 +654,14 @@ function applyMood(moodId) {
   state.brightness = mood.brightness;
   state.effect = mood.effect;
   state.zones = { ...state.zones, front: mood.frontColor || mood.color, rear: mood.rearColor || mood.color, linked: false };
+  state.areaColors = Object.fromEntries(LED_AREAS.map((area) => [area.id, area.group === 'front' ? (mood.frontColor || mood.color) : area.group === 'rear' ? (mood.rearColor || mood.color) : mood.color]));
   state.ledMap = normalizeLedMap(state.ledMap).map((item) => ({
     ...item,
-    color: item.zone === 'front' ? (mood.frontColor || mood.color) : item.zone === 'rear' ? (mood.rearColor || mood.color) : mood.color,
+    color: state.areaColors[item.area] || (item.zone === 'front' ? (mood.frontColor || mood.color) : item.zone === 'rear' ? (mood.rearColor || mood.color) : mood.color),
   }));
   saveState(); render();
+  renderLedAreaControls();
+  renderLedMapping();
   $$('[data-mood]').forEach((button) => button.classList.toggle('active', button.dataset.mood === moodId));
   sendCurrentState();
   toast(`Cena ${mood.name} aplicada.`);
@@ -610,7 +673,6 @@ async function connectBluetooth() {
     await bleClient.connect();
     state.connected = true;
     render();
-    await sendCurrentState();
     await sendCommand('INFO');
     window.setTimeout(() => { renderLedMapping(); updateLedFirmwareStatus(); }, 500);
     toast('ESP32 conectado. Verificando recursos do controlador.');
@@ -686,7 +748,7 @@ function renderLedLightingMarkers() {
     container.innerHTML = leds.map((led) => {
       const opacity = state.powered ? (led.opacity / 100) * (state.brightness / 100) : 0.035;
       return `
-        <button class="led-zone-marker led-zone-marker-${led.type} ${state.powered ? 'is-powered' : 'is-muted'}" type="button" data-select-led="${led.index}" title="LED ${led.index} • ${escapeHtml(led.name)}" aria-label="Editar LED ${led.index}: ${escapeHtml(led.name)}" style="left:${led.x}%;top:${led.y}%;--led-color:${led.color};--led-opacity:${opacity};--led-length:${led.length}%;--led-thickness:${led.thickness}px"><span>${led.index}</span></button>
+        <button class="led-zone-marker led-zone-marker-${led.type} ${state.powered ? 'is-powered' : 'is-muted'}" type="button" data-select-led="${led.index}" title="LED ${led.index} • ${escapeHtml(led.name)}" aria-label="Editar LED ${led.index}: ${escapeHtml(led.name)}" style="left:${led.x}%;top:${led.y}%;--led-color:${led.color};--led-opacity:${opacity};--led-index:${led.index};--led-length:${led.length}%;--led-thickness:${led.thickness}px"><span>${led.index}</span></button>
       `;
     }).join('');
   }
@@ -697,7 +759,7 @@ function renderLedLightingMarkers() {
     liveLayer.innerHTML = leds.map((led) => {
       const opacity = state.powered ? (led.opacity / 100) * (state.brightness / 100) : 0.035;
       return `
-        <button class="ambient-live-led ambient-live-led-${led.type} ${state.powered ? 'is-powered' : 'is-muted'}" type="button" data-select-led="${led.index}" title="${escapeHtml(led.name)} • ${led.color.toUpperCase()}" aria-label="${escapeHtml(led.name)}" style="left:${led.x}%;top:${led.y}%;--led-color:${led.color};--led-opacity:${opacity};--led-length:${led.length}%;--led-thickness:${led.thickness}px"><span class="sr-only">LED ${led.index}: ${escapeHtml(led.name)}</span></button>
+        <button class="ambient-live-led ambient-live-led-${led.type} ${state.powered ? 'is-powered' : 'is-muted'}" type="button" data-select-led="${led.index}" title="${escapeHtml(led.name)} • ${led.color.toUpperCase()}" aria-label="${escapeHtml(led.name)}" style="left:${led.x}%;top:${led.y}%;--led-color:${led.color};--led-opacity:${opacity};--led-index:${led.index};--led-length:${led.length}%;--led-thickness:${led.thickness}px"><span class="sr-only">LED ${led.index}: ${escapeHtml(led.name)}</span></button>
       `;
     }).join('');
   }
@@ -705,11 +767,11 @@ function renderLedLightingMarkers() {
 }
 
 function getActiveMoodId() {
-  return CABIN_SCENE_IMAGES[state.sceneId] ? state.sceneId : (MOODS.find((mood) => mood.name === state.profile)?.id || 'moonlight');
+  return MOODS.some((mood) => mood.id === state.sceneId) ? state.sceneId : (MOODS.find((mood) => mood.name === state.profile)?.id || 'moonlight');
 }
 
 function updateSceneCabinImages() {
-  const image = CABIN_SCENE_IMAGES[getActiveMoodId()] || cabinImageUrl;
+  const image = zoneMapNeutralUrl;
   const cabinPanel = $('#ambientCabinPanel');
   const zonePhoto = $('#ambientZonePhoto');
   const editorPhoto = $('#ledMapPhoto');
@@ -740,8 +802,11 @@ function updateSceneCabinImages() {
 
 function renderLightingVisuals() {
   updateSceneCabinImages();
-  // Espelha a escala temporal do efeito BREATHE do firmware (6,5 s até 1 s).
-  const animationMs = Math.round(6500 - ((Math.max(1, Math.min(100, state.speed)) - 1) * (5500 / 99)));
+  // Espelha o tempo dos efeitos físicos: transição lenta (6,5 s) até rápida (1 s).
+  const speed = Math.max(1, Math.min(100, state.speed));
+  const animationMs = ['CHASE', 'CASCADE', 'TWINKLE'].includes(state.effect)
+    ? Math.round(1200 - ((speed - 1) * (900 / 99)))
+    : Math.round(6500 - ((speed - 1) * (5500 / 99)));
   document.documentElement.style.setProperty('--led-animation-duration', `${animationMs}ms`);
   const layers = ['#ambientCabinLedMarkers', '#lightingLedMarkers'];
   for (const selector of layers) {
@@ -780,6 +845,37 @@ function syncZoneControlsFromMap(zone) {
   document.documentElement.style.setProperty(zone === 'front' ? '--front-zone' : '--rear-zone', first.color);
 }
 
+function renderLedAreaControls() {
+  const container = $('#ledAreaColorGrid');
+  if (!container) return;
+  container.innerHTML = LED_AREAS.map((area) => {
+    const assigned = state.ledMap.filter((item) => item.area === area.id);
+    const color = state.areaColors[area.id] || assigned[0]?.color || state.color;
+    return `<label class="led-area-color-card ${assigned.length ? 'has-led' : 'no-led'}">
+      <span class="led-area-color-name">${escapeHtml(area.label)}</span>
+      <small>${assigned.length ? assigned.map((item) => `LED ${item.index}`).join(' · ') : 'Sem LED associado'}</small>
+      <input type="color" data-area-color="${area.id}" value="${color}" aria-label="Cor de ${escapeHtml(area.label)}" />
+    </label>`;
+  }).join('');
+}
+
+function setAreaColor(areaId, color) {
+  const area = getLedArea(areaId);
+  const safeColor = /^#[0-9a-f]{6}$/i.test(color) ? color.toLowerCase() : state.color;
+  state.areaColors[area.id] = safeColor;
+  state.ledMap = normalizeLedMap(state.ledMap).map((item) => item.area === area.id ? { ...item, color: safeColor } : item);
+  state.zones.linked = false;
+  saveState();
+  renderLedLightingMarkers();
+  renderLedMapping();
+  renderLightingVisuals();
+  const capable = state.connected && state.firmwareFeatures.includes('LED_COLOR');
+  if (capable) state.ledMap.filter((item) => item.area === area.id).forEach((item) => sendCommand(makeLedColorCommand(item.index, item.color)));
+  const count = state.ledMap.filter((item) => item.area === area.id).length;
+  if (!count) toast(`Cor salva para ${area.label}. Associe um LED a essa área no desenvolvedor.`);
+  else toast(capable ? `Cor aplicada à área ${area.label} (${count} LED${count > 1 ? 's' : ''}).` : `Cor salva para ${area.label}. Conecte o Voyage Core 0.5.2 para aplicar no hardware.`);
+}
+
 function renderLedMapping() {
   const leds = normalizeLedMap(state.ledMap);
   const markers = $('#ledMapMarkers');
@@ -792,24 +888,24 @@ function renderLedMapping() {
   updateSceneCabinImages();
 
   markers.innerHTML = leds.map((led) => {
-    const opacity = state.powered ? (led.opacity / 100) * (state.brightness / 100) : 0.035;
+    const opacity = 1;
     return `
-      <button class="led-map-marker led-map-marker-${led.type} ${led.index === selectedLedIndex ? 'selected' : ''} ${state.powered ? 'is-powered' : 'is-muted'}" type="button" data-map-marker="${led.index}" aria-label="Selecionar LED ${led.index}" title="LED ${led.index} • ${escapeHtml(led.name)}" style="left:${led.x}%;top:${led.y}%;--led-color:${led.color};--led-opacity:${opacity};--led-length:${led.length}%;--led-thickness:${led.thickness}px"><span>${led.index}</span></button>
+      <button class="led-map-marker led-map-marker-${led.type} ${led.index === selectedLedIndex ? 'selected' : ''}" type="button" data-map-marker="${led.index}" aria-label="Selecionar LED ${led.index}" title="LED ${led.index} • ${escapeHtml(led.name)}" style="left:${led.x}%;top:${led.y}%;--led-color:${led.color};--led-opacity:${opacity};--led-index:${led.index};--led-length:${led.length}%;--led-thickness:${led.thickness}px"><span>${led.index}</span></button>
     `;
   }).join('');
 
   list.innerHTML = leds.map((led) => `
     <div class="led-map-list-row ${led.index === selectedLedIndex ? 'selected' : ''}">
-      <button class="led-map-select" type="button" data-select-led="${led.index}"><i style="--led-color:${led.color}"></i><span><b>LED ${led.index}</b><small>${escapeHtml(led.name)} • ${led.zone === 'front' ? 'Dianteira' : led.zone === 'rear' ? 'Traseira' : 'Porta-malas'}</small></span></button>
+      <button class="led-map-select" type="button" data-select-led="${led.index}"><i style="--led-color:${led.color}"></i><span><b>LED ${led.index}</b><small>${escapeHtml(led.name)} • ${escapeHtml(getLedAreaLabel(led.area))}</small></span></button>
       <button class="led-map-test-small" type="button" data-test-led="${led.index}" title="Piscar LED ${led.index}" ${state.firmwareFeatures.includes('LED_TEST') && state.connected ? '' : 'disabled'}>TESTAR</button>
     </div>
   `).join('');
 
   editor.innerHTML = `
-    <div class="led-editor-head"><div><span class="eyebrow">PROPRIEDADES DO PONTO</span><b>LED ${selected.index}</b></div><span class="led-editor-zone">${selected.zone === 'front' ? 'DIANTEIRA' : selected.zone === 'rear' ? 'TRASEIRA' : 'PORTA-MALAS'}</span></div>
+    <div class="led-editor-head"><div><span class="eyebrow">PROPRIEDADES DO PONTO FÍSICO</span><b>LED ${selected.index}</b></div><span class="led-editor-zone">${escapeHtml(getLedAreaLabel(selected.area).toUpperCase())}</span></div>
     <label class="led-field"><span>Nome do ponto</span><input class="text-field" maxlength="32" data-led-field="name" value="${escapeHtml(selected.name)}" /></label>
     <div class="led-field-grid">
-      <label class="led-field"><span>Área do veículo</span><select class="text-field" data-led-field="zone"><option value="front" ${selected.zone === 'front' ? 'selected' : ''}>Dianteira</option><option value="rear" ${selected.zone === 'rear' ? 'selected' : ''}>Traseira</option><option value="trunk" ${selected.zone === 'trunk' ? 'selected' : ''}>Porta-malas</option></select></label>
+      <label class="led-field"><span>Onde este LED está instalado?</span><select class="text-field" data-led-field="area">${LED_AREAS.map((area) => `<option value="${area.id}" ${selected.area === area.id ? 'selected' : ''}>${escapeHtml(area.label)}</option>`).join('')}</select></label>
       <label class="led-field"><span>Tipo de iluminação</span><select class="text-field" data-led-field="type"><option value="strip" ${selected.type === 'strip' ? 'selected' : ''}>Fita LED</option><option value="spot" ${selected.type === 'spot' ? 'selected' : ''}>Ponto de luz</option><option value="area" ${selected.type === 'area' ? 'selected' : ''}>Área iluminada</option></select></label>
     </div>
     <label class="led-field"><span>Cor individual <b id="ledSelectedHex">${selected.color.toUpperCase()}</b></span><input class="led-color-input" type="color" data-led-field="color" value="${selected.color}" /></label>
@@ -823,10 +919,11 @@ function renderLedMapping() {
 
   tester.innerHTML = leds.map((led) => `
     <button class="led-test-card ${led.index === selectedLedIndex ? 'selected' : ''}" type="button" data-select-led="${led.index}">
-      <span class="led-test-index">LED ${led.index}</span><b>${escapeHtml(led.name)}</b><small>${led.zone === 'front' ? 'Dianteira' : led.zone === 'rear' ? 'Traseira' : 'Porta-malas'}</small>
+      <span class="led-test-index">LED ${led.index}</span><b>${escapeHtml(led.name)}</b><small>${escapeHtml(getLedAreaLabel(led.area))}</small>
       <span class="led-test-action" data-test-led="${led.index}" role="button" aria-label="Testar LED ${led.index}" tabindex="0">PISCAR</span>
     </button>
   `).join('');
+  renderLedAreaControls();
   updateLedFirmwareStatus();
   attachLedMarkerDragging();
   renderLightingVisuals();
@@ -884,38 +981,60 @@ function handleLedMapField(event) {
   const led = state.ledMap.find((item) => item.index === selectedLedIndex);
   if (!led) return;
   const previousZone = led.zone;
-  if (field === 'name' || field === 'zone' || field === 'type' || field === 'color') led[field] = event.target.value;
+  if (field === 'name' || field === 'area' || field === 'type' || field === 'color') led[field] = event.target.value;
   else led[field] = Number(event.target.value);
+  if (field === 'area') {
+    const area = getLedArea(led.area);
+    led.zone = area.group;
+    led.color = state.areaColors[led.area] || led.color;
+  }
   state.ledMap = normalizeLedMap(state.ledMap);
   if (field === 'color') {
     state.zones.linked = false;
+    state.areaColors[led.area] = led.color;
+    // Um conjunto lógico (ex.: banco traseiro) mantém a mesma cor em todos os pixels associados.
+    state.ledMap = state.ledMap.map((item) => item.area === led.area ? { ...item, color: led.color } : item);
     if (led.zone === 'front' || led.zone === 'rear') syncZoneControlsFromMap(led.zone);
   }
-  if (field === 'zone') {
+  if (field === 'area') {
     if (previousZone === 'front' || previousZone === 'rear') syncZoneControlsFromMap(previousZone);
     if (led.zone === 'front' || led.zone === 'rear') syncZoneControlsFromMap(led.zone);
   }
   saveLedMapConfig();
   renderLedLightingMarkers();
   renderLightingVisuals();
-  const mapMarker = $(`#ledMapMarkers [data-map-marker="${selectedLedIndex}"]`);
-  if (mapMarker) {
-    mapMarker.style.left = `${led.x}%`; mapMarker.style.top = `${led.y}%`;
-    mapMarker.style.setProperty('--led-color', led.color);
-    mapMarker.style.setProperty('--led-opacity', String(led.opacity / 100));
-    mapMarker.style.setProperty('--led-length', `${led.length}%`);
-    mapMarker.style.setProperty('--led-thickness', `${led.thickness}px`);
-    mapMarker.classList.toggle('led-map-marker-strip', led.type === 'strip');
-    mapMarker.classList.toggle('led-map-marker-spot', led.type === 'spot');
-    mapMarker.classList.toggle('led-map-marker-area', led.type === 'area');
-  }
-  // Atualiza somente a seleção/indicadores, para não roubar o foco do controle.
+  const currentLed = state.ledMap.find((item) => item.index === selectedLedIndex) || led;
+  $$('#ledMapMarkers [data-map-marker]').forEach((marker) => {
+    const item = state.ledMap.find((entry) => entry.index === Number(marker.dataset.mapMarker));
+    if (!item) return;
+    marker.style.left = `${item.x}%`;
+    marker.style.top = `${item.y}%`;
+    marker.style.setProperty('--led-color', item.color);
+    marker.style.setProperty('--led-opacity', '1');
+    marker.style.setProperty('--led-length', `${item.length}%`);
+    marker.style.setProperty('--led-thickness', `${item.thickness}px`);
+    marker.classList.toggle('led-map-marker-strip', item.type === 'strip');
+    marker.classList.toggle('led-map-marker-spot', item.type === 'spot');
+    marker.classList.toggle('led-map-marker-area', item.type === 'area');
+    marker.classList.toggle('selected', item.index === selectedLedIndex);
+  });
+  $$('#ledMapList .led-map-select').forEach((button) => {
+    const item = state.ledMap.find((entry) => entry.index === Number(button.dataset.selectLed));
+    const swatch = button.querySelector('i');
+    const label = button.querySelector('small');
+    if (item && swatch) swatch.style.setProperty('--led-color', item.color);
+    if (item && label) label.textContent = `${item.name} • ${getLedAreaLabel(item.area)}`;
+  });
+  const areaColorInput = $(`#ledAreaColorGrid [data-area-color=\"${currentLed.area}\"]`);
+  if (areaColorInput) areaColorInput.value = currentLed.color;
   const colorHex = $('#ledSelectedHex');
-  if (colorHex) colorHex.textContent = led.color.toUpperCase();
+  if (colorHex) colorHex.textContent = currentLed.color.toUpperCase();
   const value = event.target.parentElement?.querySelector('strong');
-  if (value && ['x', 'y', 'length', 'thickness', 'opacity'].includes(field)) value.textContent = `${led[field]}${field === 'thickness' ? 'px' : '%'}`;
-  if (field === 'color' && state.firmwareFeatures.includes('LED_COLOR')) sendCommand(makeLedColorCommand(led.index, led.color));
-  if (field === 'zone') renderLedMapping();
+  if (value && ['x', 'y', 'length', 'thickness', 'opacity'].includes(field)) value.textContent = `${currentLed[field]}${field === 'thickness' ? 'px' : '%'}`;
+  if ((field === 'color' || field === 'area') && state.connected && state.firmwareFeatures.includes('LED_COLOR')) {
+    state.ledMap.filter((item) => item.area === currentLed.area).forEach((item) => sendCommand(makeLedColorCommand(item.index, item.color)));
+  }
+  if (field === 'area') renderLedMapping();
   renderLedLightingMarkers();
   renderLightingVisuals();
 }
@@ -923,6 +1042,11 @@ function handleLedMapField(event) {
 function updateLedFirmwareStatus() {
   const supportsTest = state.firmwareFeatures.includes('LED_TEST');
   const supportsColor = state.firmwareFeatures.includes('LED_COLOR');
+  const supportsEffects = state.firmwareFeatures.includes('EFFECTS');
+  $$('.effect-button[data-effect="PULSE"], .effect-button[data-effect="WAVE"], .effect-button[data-effect="CHASE"], .effect-button[data-effect="CASCADE"], .effect-button[data-effect="TWINKLE"]').forEach((button) => {
+    button.disabled = state.connected && !supportsEffects;
+    button.title = button.disabled ? 'Requer Voyage Core 0.5.2' : '';
+  });
   const badge = $('#ledFirmwareBadge');
   const note = $('#ledTesterStatus');
   const start = $('#startLedSequence');
@@ -932,14 +1056,14 @@ function updateLedFirmwareStatus() {
   }
   if (start) start.disabled = !state.connected || !supportsTest;
   $$('#ledMapList [data-test-led], #ledTesterList [data-test-led]').forEach((button) => { button.disabled = !state.connected || !supportsTest; });
-  if (note && !supportsTest) note.textContent = state.connected ? 'Controlador conectado, mas sem o recurso LED_TEST. Grave o firmware Voyage Core 0.5.1 para piscar cada pixel individualmente.' : 'Conecte o ESP32 e use o firmware Voyage Core 0.5.1 para testar cada pixel individualmente.';
+  if (note && !supportsTest) note.textContent = state.connected ? 'Controlador conectado, mas sem o recurso LED_TEST. Grave o firmware Voyage Core 0.5.2 para piscar cada pixel individualmente.' : 'Conecte o ESP32 e use o firmware Voyage Core 0.5.2 para testar cada pixel individualmente.';
   const stop = $('#stopLedTest');
   if (stop) stop.disabled = !ledTestSequenceAbort;
 }
 
 async function testSingleLed(index) {
   if (!state.connected) { toast('Conecte o ESP32 antes de testar um LED.'); return; }
-  if (!state.firmwareFeatures.includes('LED_TEST')) { toast('O firmware atual não reconhece LED_TEST. Atualize para o firmware privado Voyage Core 0.5.1.'); return; }
+  if (!state.firmwareFeatures.includes('LED_TEST')) { toast('O firmware atual não reconhece LED_TEST. Atualize para o firmware privado Voyage Core 0.5.2.'); return; }
   selectedLedIndex = index;
   renderLedMapping();
   await sendCommand(makeLedTestCommand(index));
@@ -950,7 +1074,7 @@ const wait = (ms) => new Promise((resolve) => window.setTimeout(resolve, ms));
 
 async function startLedTestSequence() {
   if (!state.connected) { toast('Conecte o ESP32 antes de iniciar a sequência.'); return; }
-  if (!state.firmwareFeatures.includes('LED_TEST')) { toast('A sequência individual requer o firmware Voyage Core 0.5.1.'); return; }
+  if (!state.firmwareFeatures.includes('LED_TEST')) { toast('A sequência individual requer o firmware Voyage Core 0.5.2.'); return; }
   ledTestSequenceAbort = true;
   updateLedFirmwareStatus();
   for (let index = 1; index <= state.ledMap.length; index++) {
@@ -1124,8 +1248,9 @@ $('#speed').addEventListener('input', (event) => { state.speed = Number(event.ta
 $('#colorPicker').addEventListener('input', (event) => setColor(event.target.value));
 $('#frontZoneColor').addEventListener('input', (event) => setZoneColor('front', event.target.value));
 $('#rearZoneColor').addEventListener('input', (event) => setZoneColor('rear', event.target.value));
-$('#syncZoneColors').addEventListener('click', () => { state.zones = { ...state.zones, front: state.color, rear: state.color, linked: true }; state.ledMap = normalizeLedMap(state.ledMap).map((item) => ({ ...item, color: state.color })); saveState(); render(); if (state.firmwareFeatures.includes('LED_COLOR')) state.ledMap.forEach((item) => sendCommand(makeLedColorCommand(item.index, item.color))); toast('Cores sincronizadas no mapa dos LEDs.'); });
-$$('.effect-button').forEach((button) => button.addEventListener('click', () => { state.effect = button.dataset.effect; saveState(); render(); sendCommand(`EFFECT=${state.effect}`); }));
+$('#syncZoneColors').addEventListener('click', () => { state.zones = { ...state.zones, front: state.color, rear: state.color, linked: true }; state.areaColors = Object.fromEntries(LED_AREAS.map((area) => [area.id, state.color])); state.ledMap = normalizeLedMap(state.ledMap).map((item) => ({ ...item, color: state.color })); saveState(); render(); renderLedAreaControls(); if (state.firmwareFeatures.includes('LED_COLOR')) state.ledMap.forEach((item) => sendCommand(makeLedColorCommand(item.index, item.color))); toast('Todas as áreas foram sincronizadas.'); });
+$('#ledAreaColorGrid').addEventListener('change', (event) => { const input = event.target.closest('[data-area-color]'); if (input) setAreaColor(input.dataset.areaColor, input.value); });
+$$('.effect-button').forEach((button) => button.addEventListener('click', () => applyEffect(button.dataset.effect)));
 $$('[data-mood]').forEach((button) => button.addEventListener('click', () => applyMood(button.dataset.mood)));
 $('#connectButton').addEventListener('click', connectBluetooth);
 $('#disconnectButton').addEventListener('click', disconnectBluetooth);
@@ -1181,6 +1306,7 @@ initVisualEditor({
 
 renderPalette();
 renderMoodCards();
+enableHorizontalDrag($('.ambient-theme-grid'));
 renderLedLightingMarkers();
 render();
 $('.main-content')?.classList.add('home-active');

@@ -18,7 +18,7 @@ beforeEach(() => memory.clear());
 
 test('cria configuração base com versão de esquema e módulos conhecidos', () => {
   const config = loadConfig();
-  assert.equal(config.schemaVersion, 3);
+  assert.equal(config.schemaVersion, 4);
   assert.equal(config.theme.activeId, 'land-rover');
   assert.equal(config.modules.length, 3);
   assert.equal(config.modules.find((item) => item.id === 'ambient-led-chain').ledCount, 5);
@@ -31,6 +31,28 @@ test('migra preferências antigas sem perder a cor e brilho salvos', () => {
   assert.equal(config.lighting.brightness, 63);
   assert.equal(config.lighting.powered, false);
   assert.ok(memory.has(CONFIG_KEY));
+});
+
+test('migra mapa 0.4.0 para cores por área sem descartar as cores antigas de cada pixel', () => {
+  memory.set(CONFIG_KEY, JSON.stringify({
+    schemaVersion: 3,
+    lighting: {
+      color: '#91B4D8',
+      ledMap: [
+        { index: 1, name: 'Motorista', zone: 'front', color: '#FF0000' },
+        { index: 2, name: 'Passageiro', zone: 'front', color: '#00FF00' },
+        { index: 3, name: 'Traseira esquerda', zone: 'rear', color: '#0000FF' },
+        { index: 4, name: 'Traseira direita', zone: 'rear', color: '#FFFF00' },
+        { index: 5, name: 'Porta-malas', zone: 'trunk', color: '#FFFFFF' },
+      ],
+    },
+  }));
+  const migrated = loadConfig();
+  assert.equal(migrated.schemaVersion, 4);
+  assert.equal(migrated.lighting.areaColors['driver-seat'], '#ff0000');
+  assert.equal(migrated.lighting.areaColors['passenger-seat'], '#00ff00');
+  assert.equal(migrated.lighting.areaColors['rear-left-seat'], '#0000ff');
+  assert.equal(migrated.lighting.areaColors.trunk, '#ffffff');
 });
 
 test('salva e valida backup de configurações', () => {
@@ -217,10 +239,14 @@ test('iluminação contém cenas Voyage, efeitos BLE suportados e configuração
   assert.match(main, /data-effect="SOLID"/);
   assert.match(main, /data-effect="BREATHE"/);
   assert.match(main, /data-effect="RAINBOW"/);
+  assert.match(main, /data-effect="PULSE"/);
+  assert.match(main, /data-effect="WAVE"/);
+  assert.match(main, /data-effect="CHASE"/);
+  assert.match(main, /id="ledAreaColorGrid"/);
   assert.match(main, /id="frontZoneColor"/);
   assert.match(main, /id="rearZoneColor"/);
   assert.match(main, /id="syncZoneColors"/);
-  assert.match(main, /Voyage Core 0\.5\.1/);
+  assert.match(main, /Voyage Core 0\.5\.2/);
 });
 
 test('preferências de cor dianteira e traseira permanecem salvas na configuração', () => {
@@ -248,16 +274,16 @@ test('tema Land Rover usa workspace fotográfico e quatro abas funcionais de ilu
   assert.ok(existsSync(new URL('../src/themes/land-rover/land-rover-cabin.webp', import.meta.url)));
 });
 
-test('controles de efeito ativos correspondem somente ao firmware BLE atual', () => {
+test('controles de efeito exibem os seis modos implementados no firmware pareado', () => {
   const main = readFileSync(new URL('../src/main.js', import.meta.url), 'utf8');
-  const activeEffects = [...main.matchAll(/data-effect=\"([A-Z_]+)\"/g)].map((match) => match[1]);
-  assert.deepEqual(activeEffects, ['SOLID', 'BREATHE', 'RAINBOW']);
-  assert.match(main, /Próximos efeitos/);
-  assert.match(main, /As cores e posições ficam salvas no aplicativo/);
+  const activeEffects = [...new Set([...main.matchAll(/data-effect=\"([A-Z_]+)\"/g)].map((match) => match[1]))];
+  assert.deepEqual(activeEffects, ['SOLID', 'BREATHE', 'PULSE', 'WAVE', 'CHASE', 'CASCADE', 'TWINKLE', 'RAINBOW']);
+  assert.match(main, /data-area-color/);
+  assert.match(main, /EFFECTS/);
 });
 
 
-import { createDefaultLedMap, normalizeLedEntry, normalizeLedMap, makeLedTestCommand, makeLedColorCommand, parseFirmwareInfo } from '../src/core/led-mapping.js';
+import { createDefaultLedMap, normalizeLedEntry, normalizeLedMap, makeLedTestCommand, makeLedColorCommand, parseFirmwareInfo, LED_AREAS, getLedArea, getLedAreaLabel } from '../src/core/led-mapping.js';
 
 test('mapa inicial identifica cinco pixels físicos com nome, zona e posição editável', () => {
   const map = createDefaultLedMap();
@@ -322,10 +348,12 @@ test('manifesto público do firmware 0.5.1 descreve UUIDs, teste, cor por pixel 
   assert.match(manifest, /Pixels endereçáveis: 5/);
 });
 
-test('as imagens de cabine usadas em marcação são importadas pelo pipeline Vite', () => {
+test('mapa de LEDs usa fotografia neutra e de alta resolução no pipeline Vite', () => {
   const main = readFileSync(new URL('../src/main.js', import.meta.url), 'utf8');
-  assert.match(main, /import cabinImageUrl from '\.\/themes\/land-rover\/land-rover-cabin\.webp'/);
-  assert.match(main, /src="\$\{cabinImageUrl\}"/);
+  assert.match(main, /import zoneMapNeutralUrl from '\.\/themes\/land-rover\/zone-map-neutral\.webp'/);
+  assert.match(main, /src="\$\{zoneMapNeutralUrl\}"/);
+  assert.ok(existsSync(new URL('../src/themes/land-rover/zone-map-neutral.webp', import.meta.url)));
+  assert.ok(!main.includes('CABIN_SCENE_IMAGES'));
 });
 
 test('firmware 0.5.1 anuncia recursos BLE em pacote curto e comando LC cabe no MTU padrão', () => {
@@ -355,15 +383,16 @@ test('editor de LEDs alimenta a prévia Ambiente, Zonas e Modo Desenvolvedor', (
   assert.match(main, /saveLedMapConfig\(\);[\s\S]{0,220}renderLedLightingMarkers\(\);[\s\S]{0,100}renderLightingVisuals\(\);/);
 });
 
-test('cada modo troca a imagem da cabine na tela Ambiente, Zonas e no mapa do desenvolvedor', () => {
+test('mapa de zonas e editor compartilham uma imagem neutra; cenas mantêm fotos próprias nos cartões', () => {
   const main = readFileSync(new URL('../src/main.js', import.meta.url), 'utf8');
-  assert.match(main, /CABIN_SCENE_IMAGES/);
+  const css = readFileSync(new URL('../src/themes/land-rover/experience.css', import.meta.url), 'utf8');
   assert.match(main, /function updateSceneCabinImages\(\)/);
   assert.match(main, /ambientZonePhoto/);
   assert.match(main, /ledMapPhoto/);
   assert.match(main, /cabinPanel\.style\.backgroundImage/);
+  assert.match(css, /zone-map-neutral\.webp/);
   for (const name of ['flora','sport','sport-pulse','moonlight','ocean','aurora','sunset','relax']) {
-    assert.ok(existsSync(new URL(`../src/themes/land-rover/interiors/${name}.webp`, import.meta.url)));
+    assert.ok(existsSync(new URL(`../src/themes/land-rover/scenes/${name}.webp`, import.meta.url)));
   }
 });
 
@@ -373,6 +402,10 @@ test('animações visuais seguem o efeito e o estado de energia em todas as pré
   assert.match(css, /data-effect=\"RAINBOW\"/);
   assert.match(css, /voyage-led-breathe/);
   assert.match(css, /voyage-led-spectrum/);
+  assert.match(css, /voyage-led-pulse/);
+  assert.match(css, /voyage-led-chase/);
+  assert.match(css, /voyage-led-cascade/);
+  assert.match(css, /voyage-led-twinkle/);
   assert.match(css, /ambient-live-led\.is-muted/);
 });
 
@@ -386,6 +419,20 @@ test('firmware pareado mantém os UUIDs, cinco pixels e grava preferências na N
   assert.match(firmware, /LED_TEST=/);
   assert.match(firmware, /LC=/);
   assert.match(firmware, /INFO=/);
+});
+
+test('Voyage Core 0.5.2 anuncia oito efeitos e mantém o pacote de capacidades BLE em 20 bytes', () => {
+  const firmware = readFileSync(new URL('../firmware/esp32/private/VoyageAmbientBLE_FW_0_5_2.ino', import.meta.url), 'utf8');
+  const infoMessage = 'INFO=0.5.2,5,LT,LC,F';
+  assert.ok(infoMessage.length <= 20);
+  const info = parseFirmwareInfo(infoMessage);
+  assert.equal(info.version, '0.5.2');
+  assert.equal(info.ledCount, 5);
+  assert.deepEqual(info.features, ['LED_TEST', 'LED_COLOR', 'EFFECTS']);
+  for (const effect of ['SOLID', 'BREATHE', 'PULSE', 'WAVE', 'CHASE', 'CASCADE', 'TWINKLE', 'RAINBOW']) assert.ok(firmware.includes(`"${effect}"`));
+  assert.match(firmware, /#define LED_PIN 12/);
+  assert.match(firmware, /Preferences/);
+  assert.match(firmware, /LC=/);
 });
 
 test('cartões de cenas usam fotografias próprias e coerentes com cada tema', () => {
@@ -416,4 +463,79 @@ test('efeito Arco-íris do firmware acompanha a faixa de velocidade exibida na i
   const firmware = readFileSync(new URL('../firmware/esp32/private/VoyageAmbientBLE_FW_0_5_1.ino', import.meta.url), 'utf8');
   assert.match(firmware, /rainbowPeriod = .*map\(speedValue, 1, 100, 6500, 1000\)/);
   assert.match(firmware, /hueStep = \(65536UL \* interval\) \/ rainbowPeriod/);
+});
+
+
+test('mapa LED suporta atribuição granular para bancos, painel, portas, pés e porta-malas', () => {
+  assert.ok(LED_AREAS.some((area) => area.id === 'driver-seat'));
+  assert.ok(LED_AREAS.some((area) => area.id === 'rear-left-seat'));
+  assert.ok(LED_AREAS.some((area) => area.id === 'dashboard'));
+  assert.ok(LED_AREAS.some((area) => area.id === 'trunk'));
+  assert.equal(getLedArea('trunk').group, 'trunk');
+  assert.equal(getLedAreaLabel('passenger-seat'), 'Banco / pés do passageiro');
+});
+
+test('migração de mapa antigo preserva zonas e atribui áreas granulares sem perder os cinco índices', () => {
+  const legacy = [
+    { index: 1, name: 'Driver', zone: 'front', x: 30, y: 60 },
+    { index: 2, name: 'Passenger', zone: 'front', x: 70, y: 60 },
+    { index: 3, name: 'Rear L', zone: 'rear', x: 30, y: 80 },
+    { index: 4, name: 'Rear R', zone: 'rear', x: 70, y: 80 },
+    { index: 5, name: 'Boot', zone: 'trunk', x: 50, y: 93 },
+  ];
+  const map = normalizeLedMap(legacy);
+  assert.equal(map.length, 5);
+  assert.deepEqual(map.map((item) => item.area), ['driver-seat', 'passenger-seat', 'rear-left-seat', 'rear-right-seat', 'trunk']);
+  assert.deepEqual(map.map((item) => item.zone), ['front', 'front', 'rear', 'rear', 'trunk']);
+});
+
+test('firmware 0.5.2 anuncia testes, cor por pixel e efeitos avançados em mensagem BLE curta', () => {
+  const firmware = readFileSync(new URL('../firmware/esp32/private/VoyageAmbientBLE_FW_0_5_2.ino', import.meta.url), 'utf8');
+  const infoCommand = 'INFO=0.5.2,5,LT,LC,F';
+  assert.ok(infoCommand.length <= 20);
+  const info = parseFirmwareInfo(infoCommand);
+  assert.equal(info.version, '0.5.2');
+  assert.equal(info.ledCount, 5);
+  assert.deepEqual(info.features, ['LED_TEST', 'LED_COLOR', 'EFFECTS']);
+  for (const effect of ['SOLID', 'BREATHE', 'PULSE', 'WAVE', 'CHASE', 'CASCADE', 'TWINKLE', 'RAINBOW']) assert.ok(firmware.includes(`\"${effect}\"`));
+  assert.match(firmware, /#define LED_PIN 12/);
+  assert.match(firmware, /Preferences/);
+});
+
+test('cores por área são salvas no modelo de configuração e enviadas aos LEDs associados', () => {
+  const config = loadConfig();
+  assert.ok(config.lighting.areaColors['driver-seat']);
+  assert.ok(config.lighting.areaColors['rear-left-seat']);
+  const saved = saveConfig({ ...config, lighting: { ...config.lighting, areaColors: { ...config.lighting.areaColors, 'driver-seat': '#FF0000' } } });
+  assert.equal(saved.ok, true);
+  assert.equal(loadConfig().lighting.areaColors['driver-seat'], '#FF0000');
+  const main = readFileSync(new URL('../src/main.js', import.meta.url), 'utf8');
+  assert.match(main, /function setAreaColor\(areaId, color\)/);
+  assert.match(main, /state\.ledMap\.filter\(\(item\) => item\.area === area\.id\)/);
+});
+
+test('mapa da aba Zonas não anima nem acende os marcadores; a animação fica na prévia Ambiente', () => {
+  const css = readFileSync(new URL('../src/themes/land-rover/experience.css', import.meta.url), 'utf8');
+  assert.match(css, /\.led-zone-preview \.led-zone-marker:before \{[\s\S]*?animation: none !important/);
+  assert.match(css, /#ambientCabinLedMarkers\[data-effect=\"PULSE\"\] \.ambient-live-led:before/);
+  assert.match(css, /#ambientCabinLedMarkers\[data-effect=\"CHASE\"\] \.ambient-live-led:before/);
+});
+
+test('editor atualiza posição, comprimento, espessura, tipo, nome e cor do marcador sem reconstruir o painel', () => {
+  const main = readFileSync(new URL('../src/main.js', import.meta.url), 'utf8');
+  assert.match(main, /marker\.style\.left = `\$\{item\.x\}%`/);
+  assert.match(main, /marker\.style\.top = `\$\{item\.y\}%`/);
+  assert.match(main, /--led-length/);
+  assert.match(main, /--led-thickness/);
+  assert.match(main, /classList\.toggle\('led-map-marker-strip'/);
+  assert.match(main, /label\.textContent = `\$\{item\.name\}/);
+});
+
+test('marcadores do mapa técnico são identificadores estáticos sobre a foto neutra', () => {
+  const main = readFileSync(new URL('../src/main.js', import.meta.url), 'utf8');
+  const css = readFileSync(new URL('../src/themes/land-rover/experience.css', import.meta.url), 'utf8');
+  assert.match(main, /const opacity = 1;/);
+  assert.match(main, /--led-index:\$\{led\.index\}/);
+  assert.match(css, /Os pontos do mapa técnico/);
+  assert.match(css, /\.led-map-stage\.lighting-off \.led-map-marker:before \{ opacity: 1; \}/);
 });
