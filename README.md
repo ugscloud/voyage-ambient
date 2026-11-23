@@ -80,7 +80,7 @@ O botão `Gerar pacote para enviar ao ChatGPT` cria um JSON com configuração, 
 npm test
 ```
 
-Os oito testes verificam a configuração base, migração das preferências antigas, backup, modelo de cinco relés, rascunho de automação, preservação dos UUIDs/comandos BLE legados e modelo/ordenação dos layouts do editor. O workflow do GitHub executa os testes antes da compilação.
+Os 26 testes verificam configuração e migração, backup, modelo de relés, rascunhos de automação, preservação do protocolo BLE, layouts do editor, recursos dos pop-ups, importação de imagens, novas abas de iluminação e limites dos efeitos suportados. O workflow do GitHub executa os testes antes da compilação.
 
 ## Proteção do firmware
 
@@ -117,3 +117,26 @@ Esta atualização mantém o identificador 0.4.0. A Home foi redesenhada com ima
 **Limitação de hardware:** o firmware BLE atual aceita POWER, COLOR global, BRIGHTNESS, EFFECT (SOLID/BREATHE/RAINBOW), SPEED e PING. As cores dianteira/traseira são guardadas como configuração no site, mas só serão aplicadas fisicamente após uma atualização do firmware que implemente o comando por zona. Não enviamos comandos BLE desconhecidos.
 
 O tema de iluminação Flora, Sport, Sport Pulse, Moonlight, Ocean, Aurora, Sunset e Relax são predefinições Voyage Ambient inspiradas em ambientes de cabine; não são apresentadas como nomes oficiais da Land Rover. A documentação oficial da Range Rover divulga iluminação de cabine configurável em 30 cores; os valores RGB deste projeto são próprios.
+
+
+## Reorganização visual fotográfica — 0.4.0
+
+A interface Land Rover-inspired agora utiliza composição fotográfica em vez de cartões genéricos. O tema carrega a imagem do veículo na Home e uma fotografia própria do interior para a área de iluminação. Os cartões usam camadas de vidro, contraste, sombras e recortes de imagem; os controles permanecem elementos HTML funcionais, não parte de uma captura de tela.
+
+### Tela inicial
+- Mantém a navegação lateral, status BLE, data/hora e quatro atalhos principais.
+- Usa o fundo automotivo local `src/themes/land-rover/land-rover-hero.webp`.
+- Os cartões possuem fundos fotográficos diferenciados.
+- A saudação “Boa viagem” permanece temporizada por três segundos.
+
+### Iluminação ambiente
+- Quatro abas: Ambiente, Cor personalizada, Zonas e Efeitos.
+- Usa a fotografia local `src/themes/land-rover/land-rover-cabin.webp` como prévia do habitáculo.
+- Oito cenas Voyage Ambient: Flora, Sport, Sport Pulse, Moonlight, Ocean, Aurora, Sunset e Relax.
+- Paleta de 30 cores, seletor de cor livre e brilho geral.
+- Cores dianteira e traseira são configuráveis e persistidas separadamente no navegador.
+- Efeitos realmente enviados ao firmware atual: Estático (`SOLID`), Respiração (`BREATHE`) e Arco-íris (`RAINBOW`). Os demais efeitos aparecem apenas como possibilidades futuras, sem enviar comandos desconhecidos.
+
+**Limites de hardware mantidos:** os cinco LEDs instalados continuam em uma única cadeia no GPIO 12 e recebem uma cor global. A tela permite guardar cores diferentes para frente e traseira, mas o ESP32 só as aplicará separadamente depois de uma atualização de firmware e de uma divisão física das zonas. Nenhum firmware foi alterado nesta atualização.
+
+A aba Aplicativos, o editor e o protocolo BLE não foram modificados nesta etapa. O identificador do projeto continua em `0.4.0`.

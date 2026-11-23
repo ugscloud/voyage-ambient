@@ -128,61 +128,91 @@ app.innerHTML = `
       </section>
 
       <section class="view" id="view-lighting">
-        <div class="lighting-page-heading">
-          <div><span class="eyebrow">CABIN EXPERIENCE</span><h1>Iluminação ambiente</h1><p>Personalize a atmosfera de cada parte do habitáculo.</p></div>
-          <div class="lighting-heading-status"><span class="scene-dot" id="sceneDot"></span><span><small>CENA ATIVA</small><b id="sceneName">MOONLIGHT</b></span><button class="power-control on" id="lightingPower" aria-label="Ligar ou desligar iluminação"><span>⏻</span></button></div>
-        </div>
-        <div class="lighting-studio">
-          <div class="lighting-studio-main">
-            <div class="lighting-cabin-visual">
-              <div class="cabin-visual-glow"></div>
-              <div class="cabin-visual-copy"><span class="eyebrow">VOYAGE AMBIENT</span><b>Crie sua atmosfera.</b><small>Iluminação configurável do habitáculo</small></div>
-              <div class="cabin-visual-car"><div class="cabin-visual-window"></div><div class="cabin-visual-console"></div><div class="cabin-light-line front"></div><div class="cabin-light-line rear"></div><div class="cabin-visual-seat seat-a"></div><div class="cabin-visual-seat seat-b"></div><div class="cabin-visual-seat seat-c"></div><div class="cabin-visual-seat seat-d"></div></div>
-              <div class="cabin-visual-status"><i class="live-dot" id="lightingStatusDot"></i><span id="lightingState">ILUMINAÇÃO ATIVA</span><span>5 LEDS · GPIO 12</span></div>
+        <div class="ambient-console">
+          <header class="ambient-console-head">
+            <div class="ambient-title-group">
+              <span class="eyebrow">VOYAGE AMBIENT • CABIN EXPERIENCE</span>
+              <h1>Iluminação ambiente</h1>
+              <p>Personalize a atmosfera do habitáculo com controle preciso.</p>
             </div>
-            <div class="lighting-presets-panel">
-              <div class="lighting-section-heading"><div><span class="eyebrow">AMBIENTES PREDEFINIDOS</span><h2>Escolha seu ambiente</h2></div><span class="count-label">CENAS VOYAGE</span></div>
-              <div class="mood-row mood-row-premium">
-                <button class="mood-button mood-flora" data-mood="flora" style="--mood:#37D67A"><span class="mood-art">❧</span><b>FLORA</b><small>Natural</small></button>
-                <button class="mood-button mood-sport" data-mood="sport" style="--mood:#FF0000"><span class="mood-art">⌁</span><b>SPORT</b><small>Intenso</small></button>
-                <button class="mood-button mood-sport-pulse" data-mood="sport-pulse" style="--mood:#FF1A1A"><span class="mood-art">∿</span><b>SPORT PULSE</b><small>Dinâmico</small></button>
-                <button class="mood-button mood-moonlight" data-mood="moonlight" style="--mood:#91B4D8"><span class="mood-art">☾</span><b>MOONLIGHT</b><small>Noturno</small></button>
-                <button class="mood-button mood-ocean" data-mood="ocean" style="--mood:#00BBD4"><span class="mood-art">≈</span><b>OCEAN</b><small>Sereno</small></button>
-                <button class="mood-button mood-aurora" data-mood="aurora" style="--mood:#8E5BFF"><span class="mood-art">✧</span><b>AURORA</b><small>Imersivo</small></button>
-                <button class="mood-button mood-sunset" data-mood="sunset" style="--mood:#FF8A42"><span class="mood-art">◒</span><b>SUNSET</b><small>Acolhedor</small></button>
-                <button class="mood-button mood-relax" data-mood="relax" style="--mood:#FFD6A0"><span class="mood-art">◇</span><b>RELAX</b><small>Conforto</small></button>
+            <div class="ambient-live-status">
+              <span class="scene-dot" id="sceneDot"></span>
+              <span><small>CENA ATIVA</small><b id="sceneName">MOONLIGHT</b></span>
+              <button class="power-control on" id="lightingPower" aria-label="Ligar ou desligar iluminação"><span>⏻</span></button>
+            </div>
+          </header>
+
+          <nav class="ambient-tabs" aria-label="Controles de iluminação">
+            <button class="ambient-tab active" type="button" data-light-tab="ambiente"><span>◈</span>Ambiente</button>
+            <button class="ambient-tab" type="button" data-light-tab="cor"><span>◉</span>Cor personalizada</button>
+            <button class="ambient-tab" type="button" data-light-tab="zonas"><span>⌗</span>Zonas</button>
+            <button class="ambient-tab" type="button" data-light-tab="efeitos"><span>∿</span>Efeitos</button>
+          </nav>
+
+          <div class="ambient-workspace">
+            <section class="ambient-cabin-panel" aria-label="Prévia do habitáculo">
+              <div class="ambient-cabin-photo"></div>
+              <div class="ambient-cabin-vignette"></div>
+              <div class="ambient-cabin-heading">
+                <span class="eyebrow">AMBIENTE PERSONALIZÁVEL</span>
+                <h2>Uma atmosfera.<br><em>Do seu jeito.</em></h2>
+                <p>Escolha cores, zonas e efeitos para o interior.</p>
               </div>
+              <div class="ambient-cabin-zone-glows"><i class="front-glow"></i><i class="rear-glow"></i></div>
+              <div class="ambient-cabin-caption"><span><i class="live-dot" id="lightingStatusDot"></i><b id="lightingState">ILUMINAÇÃO ATIVA</b></span><small>5 LEDS • GPIO 12 • CADEIA ÚNICA</small></div>
+            </section>
+
+            <div class="ambient-control-panel">
+              <section class="ambient-tab-panel active" id="lighting-panel-ambiente" data-light-panel="ambiente">
+                <div class="ambient-panel-heading"><div><span class="eyebrow">CENAS PREDEFINIDAS</span><h2>Temas de ambiente</h2><p>Selecione uma atmosfera pronta para o habitáculo.</p></div><span class="panel-counter">08 CENAS</span></div>
+                <div class="ambient-theme-grid">
+                  <button class="ambient-theme-card theme-flora" data-mood="flora" type="button"><span class="theme-card-art"></span><span class="theme-card-copy"><b>Flora</b><small>Natural e sereno</small></span><i>↗</i></button>
+                  <button class="ambient-theme-card theme-sport" data-mood="sport" type="button"><span class="theme-card-art"></span><span class="theme-card-copy"><b>Sport</b><small>Vermelho intenso</small></span><i>↗</i></button>
+                  <button class="ambient-theme-card theme-sport-pulse" data-mood="sport-pulse" type="button"><span class="theme-card-art"></span><span class="theme-card-copy"><b>Sport Pulse</b><small>Pulso vermelho</small></span><i>↗</i></button>
+                  <button class="ambient-theme-card theme-moonlight" data-mood="moonlight" type="button"><span class="theme-card-art"></span><span class="theme-card-copy"><b>Moonlight</b><small>Azul noturno</small></span><i>↗</i></button>
+                  <button class="ambient-theme-card theme-ocean" data-mood="ocean" type="button"><span class="theme-card-art"></span><span class="theme-card-copy"><b>Ocean</b><small>Azul oceânico</small></span><i>↗</i></button>
+                  <button class="ambient-theme-card theme-aurora" data-mood="aurora" type="button"><span class="theme-card-art"></span><span class="theme-card-copy"><b>Aurora</b><small>Ciclo imersivo</small></span><i>↗</i></button>
+                  <button class="ambient-theme-card theme-sunset" data-mood="sunset" type="button"><span class="theme-card-art"></span><span class="theme-card-copy"><b>Sunset</b><small>Âmbar acolhedor</small></span><i>↗</i></button>
+                  <button class="ambient-theme-card theme-relax" data-mood="relax" type="button"><span class="theme-card-art"></span><span class="theme-card-copy"><b>Relax</b><small>Conforto suave</small></span><i>↗</i></button>
+                </div>
+                <div class="ambient-selected-scene"><span class="selected-scene-swatch" id="selectedColorChip"></span><div><small>AMBIENTE SELECIONADO</small><b id="selectedColorName">Moonlight</b><em id="selectedHex">#91B4D8</em></div><button type="button" class="ambient-inline-action" data-light-tab="cor">PERSONALIZAR COR <span>→</span></button></div>
+              </section>
+
+              <section class="ambient-tab-panel" id="lighting-panel-cor" data-light-panel="cor" hidden>
+                <div class="ambient-panel-heading"><div><span class="eyebrow">PALETA DE ILUMINAÇÃO</span><h2>Escolha sua cor</h2><p>30 tons de referência e seleção livre.</p></div><span class="panel-counter">RGB</span></div>
+                <div class="ambient-color-selector"><div class="ambient-color-preview" id="ambientColorPreview"><span id="ambientColorCore"></span></div><div class="ambient-color-picker-copy"><small>COR PRINCIPAL</small><b id="ambientColorName">Moonlight</b><strong id="ambientColorHex">#91B4D8</strong><label class="ambient-color-input-wrap" for="colorPicker"><span>ABRIR SELETOR COMPLETO</span><input id="colorPicker" type="color" value="#91B4D8" aria-label="Selecionar qualquer cor" /></label></div></div>
+                <div class="ambient-quick-colors"><div class="ambient-panel-subhead"><b>Cores rápidas</b><small>SELECIONE UM TOM</small></div><div class="color-palette color-palette-premium" id="colorPalette"></div></div>
+              </section>
+
+              <section class="ambient-tab-panel" id="lighting-panel-zonas" data-light-panel="zonas" hidden>
+                <div class="ambient-panel-heading"><div><span class="eyebrow">PERSONALIZAÇÃO POR ÁREA</span><h2>Zonas de iluminação</h2><p>Defina uma cor para a frente e outra para a traseira.</p></div><span class="panel-counter">2 ZONAS</span></div>
+                <div class="ambient-zone-preview"><div class="ambient-zone-car-art"><span class="zone-track zone-track-front"></span><span class="zone-track zone-track-rear"></span><span class="zone-seat-art seat-front-a"></span><span class="zone-seat-art seat-front-b"></span><span class="zone-seat-art seat-rear-a"></span><span class="zone-seat-art seat-rear-b"></span><span class="zone-console-art"></span></div><div class="ambient-zone-preview-caption"><span>VISTA SUPERIOR DO HABITÁCULO</span><small>PRÉVIA ILUSTRATIVA</small></div></div>
+                <div class="ambient-zone-controls">
+                  <article class="ambient-zone-control"><div class="ambient-zone-top"><span class="zone-index">01</span><div><b>Dianteira</b><small>Motorista e passageiro</small></div><span class="zone-swatch" id="frontZoneSwatch"></span></div><div class="ambient-zone-input-row"><label for="frontZoneColor">Cor dianteira</label><input id="frontZoneColor" type="color" value="#91B4D8"/><strong id="frontZoneHex">#91B4D8</strong></div></article>
+                  <article class="ambient-zone-control"><div class="ambient-zone-top"><span class="zone-index">02</span><div><b>Traseira</b><small>Banco traseiro</small></div><span class="zone-swatch" id="rearZoneSwatch"></span></div><div class="ambient-zone-input-row"><label for="rearZoneColor">Cor traseira</label><input id="rearZoneColor" type="color" value="#91B4D8"/><strong id="rearZoneHex">#91B4D8</strong></div></article>
+                </div>
+                <div class="ambient-zone-footer"><button class="ambient-inline-action" id="syncZoneColors" type="button">⛓ UNIFICAR CORES</button><p id="zoneFirmwareNote">As cores por zona são salvas no aplicativo. O firmware atual ainda envia uma cor única para os cinco LEDs; a separação física será habilitada na atualização do ESP32.</p></div>
+              </section>
+
+              <section class="ambient-tab-panel" id="lighting-panel-efeitos" data-light-panel="efeitos" hidden>
+                <div class="ambient-panel-heading"><div><span class="eyebrow">MOVIMENTO DA ILUMINAÇÃO</span><h2>Efeitos de luz</h2><p>Escolha como a cor se comporta no habitáculo.</p></div><span class="panel-counter">3 ATIVOS</span></div>
+                <div class="ambient-effects-grid">
+                  <button class="effect-button active" data-effect="SOLID" type="button"><span class="effect-visual effect-static"></span><b>Estático</b><small>Cor contínua</small></button>
+                  <button class="effect-button" data-effect="BREATHE" type="button"><span class="effect-visual effect-breathe"></span><b>Respiração</b><small>Brilho suave</small></button>
+                  <button class="effect-button" data-effect="RAINBOW" type="button"><span class="effect-visual effect-spectrum"></span><b>Arco-íris</b><small>Ciclo de cores</small></button>
+                </div>
+                <div class="ambient-future-effects"><div class="ambient-panel-subhead"><b>Próximos efeitos</b><small>DISPONÍVEIS APÓS ATUALIZAÇÃO DO CONTROLADOR</small></div><div class="future-effect-list"><span>Onda</span><span>Cometa</span><span>Ritmo da música</span><span>Cascata</span><span>Sequencial</span></div></div>
+                <div class="ambient-effect-speed"><div class="range-heading"><label for="speed">Velocidade do efeito</label><strong id="speedValue">45%</strong></div><input class="range premium-range" type="range" id="speed" min="1" max="100" value="45"/><div class="range-ends"><span>Gradual</span><span>Rápido</span></div></div>
+              </section>
             </div>
           </div>
-          <aside class="lighting-studio-side">
-            <article class="lighting-glass-panel lighting-color-panel">
-              <div class="lighting-section-heading"><div><span class="eyebrow">CONTROLE DE COR</span><h2>Cor personalizada</h2></div><span class="count-label">30 CORES</span></div>
-              <div class="lighting-active-color"><span class="selected-color-chip" id="selectedColorChip"></span><span><small>COR SELECIONADA</small><b id="selectedColorName">Moonlight</b></span><strong id="selectedHex">#91B4D8</strong></div>
-              <div class="color-palette color-palette-premium" id="colorPalette"></div>
-              <div class="custom-color-row"><label for="colorPicker">Escolher qualquer cor</label><input id="colorPicker" type="color" value="#91B4D8" aria-label="Selecionar cor personalizada" /></div>
-            </article>
-            <article class="lighting-glass-panel lighting-level-panel">
-              <div class="lighting-section-heading"><div><span class="eyebrow">INTENSIDADE</span><h2>Brilho e movimento</h2></div></div>
-              <div class="control-block"><div class="range-heading"><label for="brightness">Brilho geral</label><strong id="brightnessValue">80%</strong></div><input class="range premium-range" type="range" id="brightness" min="0" max="100" value="80"/><div class="range-ends"><span>Suave</span><span>Máximo</span></div></div>
-              <div class="control-separator"></div>
-              <div class="lighting-section-heading compact-heading"><div><span class="eyebrow">EFEITO ATIVO</span><h2>Movimento da luz</h2></div></div>
-              <div class="effect-grid effect-grid-premium">
-                <button class="effect-button active" data-effect="SOLID"><span>—</span><b>Estático</b><small>Cor contínua</small></button>
-                <button class="effect-button" data-effect="BREATHE"><span>∿</span><b>Respiração</b><small>Transição suave</small></button>
-                <button class="effect-button" data-effect="RAINBOW"><span>◌</span><b>Espectro</b><small>Ciclo de cores</small></button>
-              </div>
-              <div class="control-block speed-block"><div class="range-heading"><label for="speed">Velocidade do efeito</label><strong id="speedValue">45%</strong></div><input class="range premium-range" type="range" id="speed" min="1" max="100" value="45"/><div class="range-ends"><span>Gradual</span><span>Rápido</span></div></div>
-            </article>
-          </aside>
+
+          <footer class="ambient-bottom-bar">
+            <div class="ambient-power-label"><span class="live-dot" id="ambientBottomStatus"></span><b id="ambientBottomText">ILUMINAÇÃO ATIVA</b></div>
+            <div class="ambient-master-brightness"><span>☼</span><div class="range-heading"><label for="brightness">Brilho geral</label><strong id="brightnessValue">80%</strong></div><input class="range premium-range" type="range" id="brightness" min="0" max="100" value="80"/></div>
+            <div class="ambient-current-summary"><span class="selected-color-chip"></span><b id="ambientSummaryColor">MOONLIGHT</b><small id="ambientSummaryHex">#91B4D8</small></div>
+          </footer>
         </div>
-        <section class="lighting-zones-workspace">
-          <div class="lighting-section-heading"><div><span class="eyebrow">DISTRIBUIÇÃO DO HABITÁCULO</span><h2>Zonas de iluminação</h2><p>Configure uma cor para a dianteira e outra para a traseira.</p></div><div class="zone-header-actions"><span class="zone-firmware-badge">CONFIGURAÇÃO DE ZONAS</span><button class="zone-sync-button" id="syncZoneColors" type="button">UNIFICAR CORES</button></div></div>
-          <div class="zone-color-grid">
-            <article class="zone-color-card zone-front-card"><div class="zone-card-art"><span class="zone-light-track"></span><span class="zone-seat seat-one"></span><span class="zone-seat seat-two"></span></div><div class="zone-card-heading"><span class="zone-number">01</span><div><small>ÁREA DIANTEIRA</small><b>Motorista e passageiro</b></div><span class="zone-current-swatch" id="frontZoneSwatch"></span></div><div class="zone-card-color"><label for="frontZoneColor">Cor da dianteira</label><input id="frontZoneColor" type="color" value="#91B4D8"/><strong id="frontZoneHex">#91B4D8</strong></div></article>
-            <article class="zone-color-card zone-rear-card"><div class="zone-card-art"><span class="zone-light-track"></span><span class="zone-seat seat-one"></span><span class="zone-seat seat-two"></span></div><div class="zone-card-heading"><span class="zone-number">02</span><div><small>ÁREA TRASEIRA</small><b>Banco traseiro</b></div><span class="zone-current-swatch" id="rearZoneSwatch"></span></div><div class="zone-card-color"><label for="rearZoneColor">Cor da traseira</label><input id="rearZoneColor" type="color" value="#91B4D8"/><strong id="rearZoneHex">#91B4D8</strong></div></article>
-          </div>
-          <p class="zone-firmware-note" id="zoneFirmwareNote">As cores dianteira e traseira ficam salvas como configuração. O firmware atual ainda envia uma cor única para os cinco LEDs; a aplicação física independente será ativada na próxima atualização do ESP32.</p>
-        </section>
       </section>
 
       <section class="view" id="view-camera">
@@ -369,6 +399,16 @@ function render() {
   $('#selectedColorChip').style.background = color;
   $('#selectedColorName').textContent = colorName(color);
   $('#selectedHex').textContent = color.toUpperCase();
+  if ($('#ambientColorName')) $('#ambientColorName').textContent = colorName(color);
+  if ($('#ambientColorHex')) $('#ambientColorHex').textContent = color.toUpperCase();
+  if ($('#ambientColorPreview')) $('#ambientColorPreview').style.setProperty('--preview-color', color);
+  if ($('#ambientColorCore')) $('#ambientColorCore').style.background = color;
+  if ($('#ambientSummaryColor')) $('#ambientSummaryColor').textContent = colorName(color).toUpperCase();
+  if ($('#ambientSummaryHex')) $('#ambientSummaryHex').textContent = color.toUpperCase();
+  if ($('#ambientBottomText')) $('#ambientBottomText').textContent = state.powered ? 'ILUMINAÇÃO ATIVA' : 'ILUMINAÇÃO DESLIGADA';
+  if ($('#ambientBottomStatus')) $('#ambientBottomStatus').classList.toggle('off', !state.powered);
+  const activeMood = MOODS.find((mood) => mood.name === state.profile);
+  $$('.ambient-theme-card').forEach((button) => button.classList.toggle('active', button.dataset.mood === activeMood?.id));
   $('#lightingPower').classList.toggle('on', state.powered);
   $('#lightingState').textContent = state.powered ? 'ILUMINAÇÃO ATIVA' : 'ILUMINAÇÃO DESLIGADA';
   $('#lightingStatusDot').classList.toggle('off', !state.powered);
@@ -383,6 +423,20 @@ function render() {
   $('#cameraPackage').value = state.cameraPackage;
   $$('.effect-button').forEach((button) => button.classList.toggle('active', button.dataset.effect === state.effect));
   $$('.color-choice').forEach((button) => button.classList.toggle('selected', button.dataset.color.toLowerCase() === color.toLowerCase()));
+}
+
+function setLightingTab(tab) {
+  const safeTab = ['ambiente', 'cor', 'zonas', 'efeitos'].includes(tab) ? tab : 'ambiente';
+  $$('[data-light-tab]').forEach((button) => {
+    const active = button.dataset.lightTab === safeTab;
+    button.classList.toggle('active', active);
+    button.setAttribute('aria-selected', active ? 'true' : 'false');
+  });
+  $$('[data-light-panel]').forEach((panel) => {
+    const active = panel.dataset.lightPanel === safeTab;
+    panel.classList.toggle('active', active);
+    panel.hidden = !active;
+  });
 }
 
 function setView(view) {
@@ -414,6 +468,7 @@ async function sendCurrentState() {
 function setColor(color, name = colorName(color)) {
   state.color = color.toLowerCase();
   state.profile = name.toUpperCase();
+  if (state.zones.linked) state.zones = { ...state.zones, front: state.color, rear: state.color };
   saveState(); render();
   const [r, g, b] = hexToRgb(state.color);
   sendCommand(`COLOR=${r},${g},${b}`);
@@ -422,6 +477,7 @@ function setColor(color, name = colorName(color)) {
 function setZoneColor(zone, color) {
   if (!['front', 'rear'].includes(zone)) return;
   state.zones = { ...state.zones, [zone]: color.toLowerCase(), linked: false };
+  document.documentElement.style.setProperty(zone === 'front' ? '--front-zone' : '--rear-zone', color.toLowerCase());
   saveState();
   if (zone === 'front') {
     if ($('#frontZoneHex')) $('#frontZoneHex').textContent = color.toUpperCase();
@@ -446,8 +502,10 @@ function applyMood(moodId) {
   state.profile = mood.name;
   state.brightness = mood.brightness;
   state.effect = mood.effect;
-  state.zones = { ...state.zones, front: mood.color, rear: mood.color };
-  saveState(); render(); sendCurrentState();
+  state.zones = { ...state.zones, front: mood.color, rear: mood.color, linked: true };
+  saveState(); render();
+  $$('[data-mood]').forEach((button) => button.classList.toggle('active', button.dataset.mood === moodId));
+  sendCurrentState();
   toast(`Cena ${mood.name} aplicada.`);
 }
 
@@ -656,6 +714,8 @@ function renderMoodCards() {
 }
 
 $$('[data-view]').forEach((button) => button.addEventListener('click', () => setView(button.dataset.view)));
+$$('[data-light-tab]').forEach((button) => button.addEventListener('click', () => setLightingTab(button.dataset.lightTab)));
+setLightingTab('ambiente');
 $$('[data-go]').forEach((button) => button.addEventListener('click', () => setView(button.dataset.go)));
 $('#lightingPower').addEventListener('click', () => setPower(!state.powered));
 $('#brightness').addEventListener('input', (event) => { state.brightness = Number(event.target.value); saveState(); render(); sendCommand(`BRIGHTNESS=${state.brightness}`); });

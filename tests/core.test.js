@@ -227,3 +227,28 @@ test('preferências de cor dianteira e traseira permanecem salvas na configuraç
   const reloaded = loadConfig();
   assert.deepEqual(reloaded.lighting.zones, { front: '#FF0000', rear: '#00AEEF', linked: false });
 });
+
+
+test('tema Land Rover usa workspace fotográfico e quatro abas funcionais de iluminação', () => {
+  const main = readFileSync(new URL('../src/main.js', import.meta.url), 'utf8');
+  const css = readFileSync(new URL('../src/themes/land-rover/experience.css', import.meta.url), 'utf8');
+  const style = readFileSync(new URL('../src/style.css', import.meta.url), 'utf8');
+  for (const tab of ['ambiente', 'cor', 'zonas', 'efeitos']) {
+    assert.match(main, new RegExp(`data-light-tab=\"${tab}\"`));
+    assert.match(main, new RegExp(`data-light-panel=\"${tab}\"`));
+  }
+  assert.match(main, /class=\"ambient-cabin-panel\"/);
+  assert.match(main, /id=\"frontZoneColor\"/);
+  assert.match(main, /id=\"rearZoneColor\"/);
+  assert.match(css, /land-rover-cabin\.webp/);
+  assert.match(style, /themes\/land-rover\/experience\.css/);
+  assert.ok(existsSync(new URL('../src/themes/land-rover/land-rover-cabin.webp', import.meta.url)));
+});
+
+test('controles de efeito ativos correspondem somente ao firmware BLE atual', () => {
+  const main = readFileSync(new URL('../src/main.js', import.meta.url), 'utf8');
+  const activeEffects = [...main.matchAll(/data-effect=\"([A-Z_]+)\"/g)].map((match) => match[1]);
+  assert.deepEqual(activeEffects, ['SOLID', 'BREATHE', 'RAINBOW']);
+  assert.match(main, /Próximos efeitos/);
+  assert.match(main, /O firmware atual ainda envia uma cor única para os cinco LEDs/);
+});
